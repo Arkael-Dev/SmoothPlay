@@ -1,0 +1,41 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    paths: [module.prop, bin/**, webroot/**, customize.sh, service.sh, uninstall.sh]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cek sintaks
+        run: for f in bin/smoothplay service.sh uninstall.sh customize.sh; do sh -n "$f"; done
+
+      - name: Build zip
+        id: b
+        run: |
+          sh build.sh
+          echo "v=$(grep '^version=' module.prop | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmoothPlay-${{ steps.b.outputs.v }}
+          path: SmoothPlay-*.zip
+
+      - name: Rilis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.b.outputs.v }}
+          if gh release view "$V" >/dev/null 2>&1; then
+            echo "Release $V sudah ada, dilewati"
+          else
+            gh release create "$V" SmoothPlay-*.zip --target "$GITHUB_SHA" --title "SmoothPlay $V" --notes-file CHANGELOG.md
+          fi
