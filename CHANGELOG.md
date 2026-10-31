@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.1
+- Gaming-style animated WebUI, gamepad logo, module banner, LSPosed-style status notification, stable release
+
 ## v1.1.0
 - Manual CPU/GPU governor, downscale 100-30%, thermal toggle, status notification, ZRAM/VM options
 
