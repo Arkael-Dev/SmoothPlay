@@ -1,0 +1,250 @@
+#!/system/bin/sh
+# SmoothPlay - @arqzey
+DATA=/data/adb/smoothplay
+CONF=$DATA/config
+GAMES=$DATA/games.list
+ORIG=$DATA/original.state
+LOG=$DATA/smoothplay.log
+PIDF=$DATA/daemon.pid
+ACTIVE=$DATA/active
+ZEN=$DATA/zen.prev
+MODDIR=${0%/*}/..
+SDK=$(getprop ro.build.version.sdk)
+
+mkdir -p "$DATA"; touch "$GAMES"
+if [ ! -f "$CONF" ]; then
+cat > "$CONF" <<EOC
+PROFILE="daily"
+AUTO_SWITCH="1"
+GAME_DND="0"
+REFRESH_DAILY=""
+REFRESH_GAME=""
+POLL="4"
+EOC
+fi
+load() { . "$CONF"; }
+load
+
+log() {
+  echo "$(date '+%m-%d %H:%M:%S') $*" >> "$LOG"
+  if [ "$(wc -c < "$LOG")" -gt 200000 ]; then
+    tail -n 200 "$LOG" > "$LOG.t"; mv "$LOG.t" "$LOG"
+  fi
+}
+
+isnum()  { case "$1" in ""|*[!0-9]*) return 1;; esac; return 0; }
+okpkg()  { case "$1" in ""|*[!A-Za-z0-9_.]*) return 1;; esac; return 0; }
+w()      { [ -w "$1" ] && echo "$2" > "$1" 2>/dev/null; }
+sput()   { settings put "$@" </dev/null; }
+sget()   { settings get "$@" </dev/null; }
+
+setconf() {
+  grep -v "^$1=" "$CONF" > "$CONF.t"
+  echo "$1=\"$2\"" >> "$CONF.t"
+  mv "$CONF.t" "$CONF"
+}
+
+meminfo() {
+  while read -r k v u; do
+    [ "$k" = "$1:" ] && echo $((v / 1024)) && break
+  done < /proc/meminfo
+}
+
+# ---------- baseline ----------
+backup() {
+  [ -f "$ORIG" ] && return 0
+  : > "$ORIG"
+  for k in window_animation_scale transition_animation_scale animator_duration_scale; do
+    echo "S|global|$k|$(sget global $k)" >> "$ORIG"
+  done
+  for k in min_refresh_rate peak_refresh_rate; do
+    echo "S|system|$k|$(sget system $k)" >> "$ORIG"
+  done
+  for f in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor \
+           /proc/sys/vm/swappiness /proc/sys/vm/vfs_cache_pressure \
+           /proc/sys/net/ipv4/tcp_congestion_control; do
+    [ -r "$f" ] && echo "F|$f|$(cat "$f")" >> "$ORIG"
+  done
+  log "baseline disimpan"
+}
+
+restore_sys() {
+  [ -f "$ORIG" ] || return 0
+  grep '^F|' "$ORIG" | while IFS='|' read -r t f v; do w "$f" "$v"; done
+}
+
+restore_S() {
+  l=$(grep "^S|$1|$2|" "$ORIG" 2>/dev/null | head -n 1)
+  [ -z "$l" ] && return 0
+  v=${l##*|}
+  if [ "$v" = "null" ]; then settings delete "$1" "$2" </dev/null; else sput "$1" "$2" "$v"; fi
+}
+
+restore_all() {
+  [ -f "$ORIG" ] || { echo "Belum ada baseline, tidak ada yang dipulihkan"; return 0; }
+  restore_sys
+  grep '^S|' "$ORIG" | while IFS='|' read -r t ns k v; do restore_S "$ns" "$k"; done
+  dnd_restore
+  rm -f "$ACTIVE"
+  setconf AUTO_SWITCH 0
+  log "dipulihkan ke bawaan"
+  echo "Pengaturan dipulihkan. Auto-switch dimatikan."
+}
+
+# ---------- tweak ----------
+set_gov() {
+  for d in /sys/devices/system/cpu/cpufreq/policy*; do
+    grep -qw "$1" "$d/scaling_available_governors" 2>/dev/null && w "$d/scaling_governor" "$1"
+  done
+}
+anim()        { for k in window_animation_scale transition_animation_scale animator_duration_scale; do sput global $k "$1"; done; }
+refresh_set() { sput system min_refresh_rate "$1"; sput system peak_refresh_rate "$2"; }
+dnd_on()      { [ -f "$ZEN" ] || sget global zen_mode > "$ZEN"; sput global zen_mode 1; }
+dnd_restore() {
+  [ -f "$ZEN" ] || return 0
+  z=$(cat "$ZEN"); { [ "$z" = "null" ] || [ -z "$z" ]; } && z=0
+  sput global zen_mode "$z"; rm -f "$ZEN"
+}
+
+p_daily() {
+  restore_sys
+  anim 0.7
+  if [ -n "$REFRESH_DAILY" ]; then
+    refresh_set 60 "$REFRESH_DAILY"
+  else
+    for k in min_refresh_rate peak_refresh_rate; do restore_S system $k; done
+  fi
+  dnd_restore
+}
+
+p_game() {
+  set_gov performance
+  w /proc/sys/vm/swappiness 40
+  w /proc/sys/vm/vfs_cache_pressure 50
+  grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null \
+    && w /proc/sys/net/ipv4/tcp_congestion_control bbr
+  anim 0.5
+  [ -n "$REFRESH_GAME" ] && refresh_set "$REFRESH_GAME" "$REFRESH_GAME"
+  [ "$GAME_DND" = "1" ] && dnd_on
+}
+
+apply() {
+  load; backup
+  case "$1" in
+    daily) p_daily;;
+    game)  p_game;;
+    *) return 1;;
+  esac
+  echo "$1" > "$ACTIVE"
+  log "profil aktif: $1"
+}
+
+gmode() { [ "${SDK:-0}" -ge 31 ] && cmd game mode "$1" "$2" >/dev/null 2>&1; return 0; }
+
+# ---------- deteksi aplikasi depan ----------
+fg_pkg() {
+  l=$(dumpsys window 2>/dev/null | grep -m1 mCurrentFocus)
+  [ -z "$l" ] && l=$(dumpsys activity activities 2>/dev/null | grep -m1 -E 'topResumedActivity|ResumedActivity')
+  echo "$l" | sed -n 's/.* \([A-Za-z0-9_.]*\)\/[^ ]*.*/\1/p'
+}
+
+daemon_alive() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
+
+daemon() {
+  if daemon_alive && [ "$(cat "$PIDF")" != "$$" ]; then exit 0; fi
+  echo $$ > "$PIDF"
+  log "daemon mulai (pid $$)"
+  load
+  [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
+  key=""; lastgame=""
+  while :; do
+    load
+    if [ "$AUTO_SWITCH" = "1" ]; then
+      pkg=$(fg_pkg)
+      case "$pkg" in
+        ""|com.android.systemui) ;;
+        *)
+          if grep -qxF "$pkg" "$GAMES"; then want="game:$pkg"; else want="daily"; fi
+          if [ "$want" != "$key" ]; then
+            if [ "$want" = "daily" ]; then
+              [ -n "$lastgame" ] && gmode standard "$lastgame"
+              lastgame=""; apply daily
+            else
+              [ -n "$lastgame" ] && gmode standard "$lastgame"
+              apply game; gmode performance "$pkg"; lastgame="$pkg"
+            fi
+            key="$want"
+          fi;;
+      esac
+    else
+      key=""
+    fi
+    sleep "${POLL:-4}"
+  done
+}
+
+# ---------- info ----------
+status() {
+  load
+  echo "version=$(grep '^version=' "$MODDIR/module.prop" | cut -d= -f2)"
+  echo "active=$(cat "$ACTIVE" 2>/dev/null || echo none)"
+  echo "profile=$PROFILE"
+  echo "auto=$AUTO_SWITCH"
+  echo "dnd=$GAME_DND"
+  echo "refresh_daily=$REFRESH_DAILY"
+  echo "refresh_game=$REFRESH_GAME"
+  echo "daemon=$(daemon_alive && echo 1 || echo 0)"
+  echo "games=$(grep -c . "$GAMES")"
+  [ -r /sys/devices/system/cpu/cpufreq/policy0/scaling_governor ] && \
+    echo "governor=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor)"
+  echo "swappiness=$(cat /proc/sys/vm/swappiness 2>/dev/null)"
+  echo "ram_free=$(meminfo MemAvailable)"
+  echo "ram_total=$(meminfo MemTotal)"
+  [ -r /sys/class/power_supply/battery/temp ] && echo "temp=$(( $(cat /sys/class/power_supply/battery/temp) / 10 ))"
+  [ -r /sys/class/power_supply/battery/capacity ] && echo "battery=$(cat /sys/class/power_supply/battery/capacity)"
+  echo "sdk=$SDK"
+}
+
+clean() {
+  b=$(meminfo MemAvailable)
+  am kill-all >/dev/null 2>&1
+  sleep 1
+  a=$(meminfo MemAvailable)
+  log "clean RAM: ${b}MB -> ${a}MB"
+  echo "RAM tersedia: ${b} MB -> ${a} MB"
+}
+
+case "$1" in
+  status)  status;;
+  profile)
+    case "$2" in
+      daily|game) setconf PROFILE "$2"; setconf AUTO_SWITCH 0; apply "$2" && echo "Profil $2 aktif (auto-switch dimatikan)";;
+      *) echo "profil tidak valid"; exit 1;;
+    esac;;
+  set)
+    case "$2" in
+      AUTO_SWITCH|GAME_DND) case "$3" in 0|1) ;; *) echo "nilai tidak valid"; exit 1;; esac;;
+      REFRESH_DAILY|REFRESH_GAME) [ -z "$3" ] || isnum "$3" || { echo "nilai tidak valid"; exit 1; };;
+      POLL) isnum "$3" && [ "$3" -ge 2 ] && [ "$3" -le 30 ] || { echo "POLL 2-30"; exit 1; };;
+      *) echo "kunci tidak dikenal"; exit 1;;
+    esac
+    setconf "$2" "$3"; load
+    case "$2" in REFRESH_*|GAME_DND) a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";; esac
+    echo "OK";;
+  games)
+    case "$2" in
+      add)    okpkg "$3" || { echo "paket tidak valid"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
+      remove) okpkg "$3" || { echo "paket tidak valid"; exit 1; }; grep -vxF "$3" "$GAMES" > "$GAMES.t"; mv "$GAMES.t" "$GAMES"; echo OK;;
+      *) cat "$GAMES";;
+    esac;;
+  installed) pm list packages -3 2>/dev/null | sed 's/^package://' | sort;;
+  clean)     clean;;
+  trimcache) pm trim-caches 999G >/dev/null 2>&1; log "trim cache"; echo "Cache aplikasi dibersihkan";;
+  dexopt)
+    ( cmd package compile -m speed-profile -a >> "$LOG" 2>&1; log "dexopt selesai" ) &
+    log "dexopt dimulai"; echo "Optimasi dimulai di latar belakang (beberapa menit)";;
+  restore)   restore_all;;
+  log)       tail -n 40 "$LOG" 2>/dev/null;;
+  daemon)    daemon;;
+  *) echo "pakai: smoothplay {status|profile|set|games|installed|clean|trimcache|dexopt|restore|log|daemon}"; exit 1;;
+esac

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SmoothPlay</title>
+<style>
+:root{--bg:#f3f4f8;--surface:#fff;--ink:#1c2030;--mute:#667;--line:#dde0ea;--daily:#2f9c8f;--game:#d98a1c;--accent:var(--daily);--on:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#171a26;--surface:#212536;--ink:#e8eaf2;--mute:#9aa0b8;--line:#33384d;--daily:#4fb8aa;--game:#f0b04a;--on:#10131c}}
+body.game{--accent:var(--game)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif;padding:0 14px calc(28px + env(safe-area-inset-bottom,0px))}
+header{padding:calc(22px + env(safe-area-inset-top,0px)) 4px 14px}
+h1{margin:0;font-size:26px;letter-spacing:-.4px}
+header p{margin:2px 0 0;color:var(--mute);font-size:13px}
+h2{font-size:13px;font-weight:600;color:var(--mute);margin:22px 4px 8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px}
+.seg button{border:0;border-radius:10px;padding:16px 8px;background:transparent;color:var(--ink);font:inherit;font-weight:600;text-align:left}
+.seg button small{display:block;font-weight:400;color:var(--mute);margin-top:2px}
+.seg button.on{background:var(--accent);color:var(--on)}
+.seg button.on small{color:var(--on);opacity:.8}
+.grid{display:grid;grid-template-columns:1fr 1fr}
+.grid div{padding:11px 14px;border-bottom:1px solid var(--line)}
+.grid div:nth-child(odd){border-right:1px solid var(--line)}
+.grid div:nth-last-child(-n+2){border-bottom:0}
+.grid b{display:block;font-size:16px}
+.grid span{color:var(--mute);font-size:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row small{display:block;color:var(--mute);font-size:12px}
+select,input[type=search]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px}
+input[type=search]{width:100%;margin:10px 0 0}
+.sw{appearance:none;width:46px;height:28px;border-radius:14px;background:var(--line);position:relative;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw:checked{background:var(--accent)}.sw:checked::after{transform:translateX(18px)}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tools button,.danger{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:14px 10px;font:inherit;font-weight:600}
+.tools button small{display:block;font-weight:400;color:var(--mute);font-size:12px;margin-top:2px}
+.danger{width:100%;margin-top:8px;color:#d1453b}
+#list{max-height:300px;overflow:auto}
+#list label{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);word-break:break-all;font-size:13px}
+#list input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;color:var(--mute);max-height:200px;overflow:auto}
+#toast{position:fixed;left:14px;right:14px;bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:12px 14px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><h1>SmoothPlay</h1><p id="meta">memuat…</p></header>
+
+<div class="card seg" id="seg">
+  <button data-p="daily" type="button">Daily<small>Hemat &amp; halus</small></button>
+  <button data-p="game" type="button">Game<small>Performa penuh</small></button>
+</div>
+
+<h2>Status</h2>
+<div class="card grid" id="stat"></div>
+
+<h2>Otomatis</h2>
+<div class="card">
+  <label class="row"><span>Ganti profil otomatis<small>Game aktif saat aplikasi di daftar dibuka</small></span><input class="sw" type="checkbox" id="auto"></label>
+  <label class="row"><span>Jangan ganggu saat game<small>Mode DND dipulihkan setelah keluar</small></span><input class="sw" type="checkbox" id="dnd"></label>
+</div>
+
+<h2>Refresh rate</h2>
+<div class="card">
+  <label class="row"><span>Daily<small>Maksimum; minimum 60 Hz</small></span><select id="rd"></select></label>
+  <label class="row"><span>Game<small>Dikunci ke nilai ini</small></span><select id="rg"></select></label>
+</div>
+
+<h2>Daftar game</h2>
+<div class="card" style="padding:0 14px 0"><input type="search" id="q" placeholder="Cari aplikasi terpasang" aria-label="Cari aplikasi"></div>
+<div class="card" id="list" style="margin-top:8px"></div>
+
+<h2>Alat</h2>
+<div class="tools">
+  <button type="button" id="clean">Bersihkan RAM<small>Hentikan proses cache</small></button>
+  <button type="button" id="trim">Bersihkan cache<small>Cache semua aplikasi</small></button>
+  <button type="button" id="dex">Optimasi aplikasi<small>Kompilasi speed-profile</small></button>
+  <button type="button" id="logbtn">Muat log<small>40 baris terakhir</small></button>
+</div>
+<button class="danger" type="button" id="restore">Pulihkan bawaan</button>
+
+<h2>Log</h2>
+<div class="card"><pre id="log">Belum dimuat.</pre></div>
+<div id="toast" role="status"></div>
+
+<script>
+const BIN='/data/adb/modules/smoothplay/bin/smoothplay';
+const $=s=>document.querySelector(s);
+const q1=a=>"'"+String(a).replace(/'/g,"'\\''")+"'";
+let games=new Set(),installed=[];
+
+function exec(cmd){
+  return new Promise(res=>{
+    if(typeof ksu==='undefined'){res({code:1,out:'',err:'Buka lewat KernelSU, APatch, atau KsuWebUI.'});return}
+    const cb='_cb'+Date.now()+Math.random().toString(36).slice(2);
+    window[cb]=(c,o,e)=>{delete window[cb];res({code:c,out:(o||'').trim(),err:(e||'').trim()})};
+    ksu.exec(cmd,'{}',cb);
+  });
+}
+const sp=(...a)=>exec([BIN,...a.map(q1)].join(' '));
+let tt;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2600)}
+async function act(...a){const r=await sp(...a);toast(r.code===0?(r.out||'OK'):(r.err||r.out||'Gagal'));await load();return r}
+
+function opts(sel,val){
+  sel.innerHTML='';
+  [['','Bawaan sistem'],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']]
+    .forEach(([v,t])=>sel.add(new Option(t,v)));
+  sel.value=val;
+}
+
+async function load(){
+  const r=await sp('status');
+  if(r.code!==0){$('#meta').textContent=r.err||'Modul tidak merespons';return}
+  const s=Object.fromEntries(r.out.split('\n').map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)]}));
+  document.body.classList.toggle('game',s.active==='game');
+  $('#meta').textContent=`${s.version} oleh @arqzey · daemon ${s.daemon==='1'?'berjalan':'mati'}`;
+  document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===s.active));
+  $('#auto').checked=s.auto==='1';$('#dnd').checked=s.dnd==='1';
+  opts($('#rd'),s.refresh_daily);opts($('#rg'),s.refresh_game);
+  const used=s.ram_total-s.ram_free;
+  const cells=[['Profil aktif',s.active==='none'?'Belum ada':s.active],['Governor CPU',s.governor||'-'],
+    ['RAM bebas',`${s.ram_free} / ${s.ram_total} MB`],['Swappiness',s.swappiness||'-'],
+    ['Suhu baterai',s.temp?s.temp+' °C':'-'],['Baterai',s.battery?s.battery+'%':'-']];
+  $('#stat').innerHTML=cells.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join('');
+}
+
+async function loadGames(){
+  const [g,i]=await Promise.all([sp('games'),sp('installed')]);
+  games=new Set(g.out.split('\n').filter(Boolean));
+  installed=i.out.split('\n').filter(Boolean);
+  renderList();
+}
+function renderList(){
+  const f=$('#q').value.trim().toLowerCase();
+  const all=[...new Set([...games,...installed])].filter(p=>p.toLowerCase().includes(f));
+  all.sort((a,b)=>(games.has(b)-games.has(a))||a.localeCompare(b));
+  const box=$('#list');box.innerHTML='';
+  if(!all.length){box.innerHTML='<label>Tidak ada aplikasi yang cocok.</label>';return}
+  all.forEach(p=>{
+    const l=document.createElement('label'),c=document.createElement('input');
+    c.type='checkbox';c.checked=games.has(p);
+    c.onchange=async()=>{
+      const r=await sp('games',c.checked?'add':'remove',p);
+      if(r.code!==0){c.checked=!c.checked;toast(r.err||r.out);return}
+      c.checked?games.add(p):games.delete(p);toast(c.checked?'Ditambahkan ke daftar game':'Dihapus dari daftar game');
+    };
+    l.append(c,document.createTextNode(p));box.append(l);
+  });
+}
+
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>act('profile',b.dataset.p));
+$('#auto').onchange=e=>act('set','AUTO_SWITCH',e.target.checked?1:0);
+$('#dnd').onchange=e=>act('set','GAME_DND',e.target.checked?1:0);
+$('#rd').onchange=e=>act('set','REFRESH_DAILY',e.target.value);
+$('#rg').onchange=e=>act('set','REFRESH_GAME',e.target.value);
+$('#q').oninput=renderList;
+$('#clean').onclick=()=>act('clean');
+$('#trim').onclick=()=>act('trimcache');
+$('#dex').onclick=()=>act('dexopt');
+$('#restore').onclick=()=>{if(confirm('Pulihkan semua pengaturan ke nilai sebelum modul dipakai?'))act('restore')};
+$('#logbtn').onclick=async()=>{const r=await sp('log');$('#log').textContent=r.out||'Log kosong.'};
+load();loadGames();setInterval(load,10000);
+</script>
+</body>
+</html>

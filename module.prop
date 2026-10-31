@@ -1,0 +1,7 @@
+id=smoothplay
+name=SmoothPlay
+version=v1.0.0
+versionCode=1
+author=@arqzey
+description=Profil Daily & Game otomatis per aplikasi, kontrol refresh rate, tuning CPU/VM, dan WebUI.
+updateJson=https://raw.githubusercontent.com/Arkael-Dev/SmoothPlay/main/update.json
