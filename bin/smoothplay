@@ -65,7 +65,7 @@ backup() {
            /proc/sys/net/ipv4/tcp_congestion_control; do
     [ -r "$f" ] && echo "F|$f|$(cat "$f")" >> "$ORIG"
   done
-  log "baseline disimpan"
+  log "baseline saved"
 }
 
 restore_sys() {
@@ -81,17 +81,17 @@ restore_S() {
 }
 
 restore_all() {
-  [ -f "$ORIG" ] || { echo "Belum ada baseline, tidak ada yang dipulihkan"; return 0; }
+  [ -f "$ORIG" ] || { echo "No baseline saved, nothing to restore"; return 0; }
   restore_sys
   grep '^S|' "$ORIG" | while IFS='|' read -r t ns k v; do restore_S "$ns" "$k"; done
   dnd_restore
   rm -f "$ACTIVE"
   setconf AUTO_SWITCH 0
-  log "dipulihkan ke bawaan"
-  echo "Pengaturan dipulihkan. Auto-switch dimatikan."
+  log "restored to defaults"
+  echo "Settings restored. Auto-switch turned off."
 }
 
-# ---------- tweak ----------
+# ---------- tweaks ----------
 set_gov() {
   for d in /sys/devices/system/cpu/cpufreq/policy*; do
     grep -qw "$1" "$d/scaling_available_governors" 2>/dev/null && w "$d/scaling_governor" "$1"
@@ -136,12 +136,12 @@ apply() {
     *) return 1;;
   esac
   echo "$1" > "$ACTIVE"
-  log "profil aktif: $1"
+  log "active profile: $1"
 }
 
 gmode() { [ "${SDK:-0}" -ge 31 ] && cmd game mode "$1" "$2" >/dev/null 2>&1; return 0; }
 
-# ---------- deteksi aplikasi depan ----------
+# ---------- foreground app detection ----------
 fg_pkg() {
   l=$(dumpsys window 2>/dev/null | grep -m1 mCurrentFocus)
   [ -z "$l" ] && l=$(dumpsys activity activities 2>/dev/null | grep -m1 -E 'topResumedActivity|ResumedActivity')
@@ -153,7 +153,7 @@ daemon_alive() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
 daemon() {
   if daemon_alive && [ "$(cat "$PIDF")" != "$$" ]; then exit 0; fi
   echo $$ > "$PIDF"
-  log "daemon mulai (pid $$)"
+  log "daemon started (pid $$)"
   load
   [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
   key=""; lastgame=""
@@ -211,40 +211,40 @@ clean() {
   sleep 1
   a=$(meminfo MemAvailable)
   log "clean RAM: ${b}MB -> ${a}MB"
-  echo "RAM tersedia: ${b} MB -> ${a} MB"
+  echo "Available RAM: ${b} MB -> ${a} MB"
 }
 
 case "$1" in
   status)  status;;
   profile)
     case "$2" in
-      daily|game) setconf PROFILE "$2"; setconf AUTO_SWITCH 0; apply "$2" && echo "Profil $2 aktif (auto-switch dimatikan)";;
-      *) echo "profil tidak valid"; exit 1;;
+      daily|game) setconf PROFILE "$2"; setconf AUTO_SWITCH 0; apply "$2" && echo "Profile $2 active (auto-switch turned off)";;
+      *) echo "invalid profile"; exit 1;;
     esac;;
   set)
     case "$2" in
-      AUTO_SWITCH|GAME_DND) case "$3" in 0|1) ;; *) echo "nilai tidak valid"; exit 1;; esac;;
-      REFRESH_DAILY|REFRESH_GAME) [ -z "$3" ] || isnum "$3" || { echo "nilai tidak valid"; exit 1; };;
+      AUTO_SWITCH|GAME_DND) case "$3" in 0|1) ;; *) echo "invalid value"; exit 1;; esac;;
+      REFRESH_DAILY|REFRESH_GAME) [ -z "$3" ] || isnum "$3" || { echo "invalid value"; exit 1; };;
       POLL) isnum "$3" && [ "$3" -ge 2 ] && [ "$3" -le 30 ] || { echo "POLL 2-30"; exit 1; };;
-      *) echo "kunci tidak dikenal"; exit 1;;
+      *) echo "unknown key"; exit 1;;
     esac
     setconf "$2" "$3"; load
     case "$2" in REFRESH_*|GAME_DND) a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";; esac
     echo "OK";;
   games)
     case "$2" in
-      add)    okpkg "$3" || { echo "paket tidak valid"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
-      remove) okpkg "$3" || { echo "paket tidak valid"; exit 1; }; grep -vxF "$3" "$GAMES" > "$GAMES.t"; mv "$GAMES.t" "$GAMES"; echo OK;;
+      add)    okpkg "$3" || { echo "invalid package"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
+      remove) okpkg "$3" || { echo "invalid package"; exit 1; }; grep -vxF "$3" "$GAMES" > "$GAMES.t"; mv "$GAMES.t" "$GAMES"; echo OK;;
       *) cat "$GAMES";;
     esac;;
   installed) pm list packages -3 2>/dev/null | sed 's/^package://' | sort;;
   clean)     clean;;
-  trimcache) pm trim-caches 999G >/dev/null 2>&1; log "trim cache"; echo "Cache aplikasi dibersihkan";;
+  trimcache) pm trim-caches 999G >/dev/null 2>&1; log "trim cache"; echo "App caches cleared";;
   dexopt)
-    ( cmd package compile -m speed-profile -a >> "$LOG" 2>&1; log "dexopt selesai" ) &
-    log "dexopt dimulai"; echo "Optimasi dimulai di latar belakang (beberapa menit)";;
+    ( cmd package compile -m speed-profile -a >> "$LOG" 2>&1; log "dexopt finished" ) &
+    log "dexopt started"; echo "Optimization started in the background (a few minutes)";;
   restore)   restore_all;;
   log)       tail -n 40 "$LOG" 2>/dev/null;;
   daemon)    daemon;;
-  *) echo "pakai: smoothplay {status|profile|set|games|installed|clean|trimcache|dexopt|restore|log|daemon}"; exit 1;;
+  *) echo "usage: smoothplay {status|profile|set|games|installed|clean|trimcache|dexopt|restore|log|daemon}"; exit 1;;
 esac

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -10,7 +10,7 @@
 body.game{--accent:var(--game)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif;padding:0 14px calc(28px + env(safe-area-inset-bottom,0px))}
-header{padding:calc(22px + env(safe-area-inset-top,0px)) 4px 14px}
+header{padding:calc(22px + env(safe-area-inset-top,0px)) 4px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 h1{margin:0;font-size:26px;letter-spacing:-.4px}
 header p{margin:2px 0 0;color:var(--mute);font-size:13px}
 h2{font-size:13px;font-weight:600;color:var(--mute);margin:22px 4px 8px}
@@ -49,83 +49,127 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
 </style>
 </head>
 <body>
-<header><h1>SmoothPlay</h1><p id="meta">memuat…</p></header>
+<header>
+  <div><h1>SmoothPlay</h1><p id="meta"></p></div>
+  <select id="lang" aria-label="Language"><option value="en">English</option><option value="id">Indonesia</option></select>
+</header>
 
 <div class="card seg" id="seg">
-  <button data-p="daily" type="button">Daily<small>Hemat &amp; halus</small></button>
-  <button data-p="game" type="button">Game<small>Performa penuh</small></button>
+  <button data-p="daily" type="button"><span data-i="daily"></span><small data-i="daily_s"></small></button>
+  <button data-p="game" type="button"><span data-i="game"></span><small data-i="game_s"></small></button>
 </div>
 
-<h2>Status</h2>
+<h2 data-i="status"></h2>
 <div class="card grid" id="stat"></div>
 
-<h2>Otomatis</h2>
+<h2 data-i="automation"></h2>
 <div class="card">
-  <label class="row"><span>Ganti profil otomatis<small>Game aktif saat aplikasi di daftar dibuka</small></span><input class="sw" type="checkbox" id="auto"></label>
-  <label class="row"><span>Jangan ganggu saat game<small>Mode DND dipulihkan setelah keluar</small></span><input class="sw" type="checkbox" id="dnd"></label>
+  <label class="row"><span><span data-i="auto"></span><small data-i="auto_s"></small></span><input class="sw" type="checkbox" id="auto"></label>
+  <label class="row"><span><span data-i="dnd"></span><small data-i="dnd_s"></small></span><input class="sw" type="checkbox" id="dnd"></label>
 </div>
 
-<h2>Refresh rate</h2>
+<h2 data-i="refresh"></h2>
 <div class="card">
-  <label class="row"><span>Daily<small>Maksimum; minimum 60 Hz</small></span><select id="rd"></select></label>
-  <label class="row"><span>Game<small>Dikunci ke nilai ini</small></span><select id="rg"></select></label>
+  <label class="row"><span><span data-i="daily"></span><small data-i="rd_s"></small></span><select id="rd"></select></label>
+  <label class="row"><span><span data-i="game"></span><small data-i="rg_s"></small></span><select id="rg"></select></label>
 </div>
 
-<h2>Daftar game</h2>
-<div class="card" style="padding:0 14px 0"><input type="search" id="q" placeholder="Cari aplikasi terpasang" aria-label="Cari aplikasi"></div>
+<h2 data-i="gamelist"></h2>
+<div class="card" style="padding:0 14px 0"><input type="search" id="q" data-ph="search"></div>
 <div class="card" id="list" style="margin-top:8px"></div>
 
-<h2>Alat</h2>
+<h2 data-i="tools"></h2>
 <div class="tools">
-  <button type="button" id="clean">Bersihkan RAM<small>Hentikan proses cache</small></button>
-  <button type="button" id="trim">Bersihkan cache<small>Cache semua aplikasi</small></button>
-  <button type="button" id="dex">Optimasi aplikasi<small>Kompilasi speed-profile</small></button>
-  <button type="button" id="logbtn">Muat log<small>40 baris terakhir</small></button>
+  <button type="button" id="clean"><span data-i="clean"></span><small data-i="clean_s"></small></button>
+  <button type="button" id="trim"><span data-i="trim"></span><small data-i="trim_s"></small></button>
+  <button type="button" id="dex"><span data-i="dex"></span><small data-i="dex_s"></small></button>
+  <button type="button" id="logbtn"><span data-i="logbtn"></span><small data-i="logbtn_s"></small></button>
 </div>
-<button class="danger" type="button" id="restore">Pulihkan bawaan</button>
+<button class="danger" type="button" id="restore" data-i="restore"></button>
 
-<h2>Log</h2>
-<div class="card"><pre id="log">Belum dimuat.</pre></div>
+<h2 data-i="log"></h2>
+<div class="card"><pre id="log"></pre></div>
 <div id="toast" role="status"></div>
 
 <script>
 const BIN='/data/adb/modules/smoothplay/bin/smoothplay';
+const I={
+en:{daily:'Daily',daily_s:'Smooth & efficient',game:'Game',game_s:'Full performance',status:'Status',automation:'Automation',
+auto:'Auto-switch profile',auto_s:'Game profile starts when a listed app is opened',dnd:'Do Not Disturb in games',dnd_s:'DND is restored when you leave the game',
+refresh:'Refresh rate',rd_s:'Maximum; minimum 60 Hz',rg_s:'Locked to this value',gamelist:'Game list',search:'Search installed apps',
+tools:'Tools',clean:'Clean RAM',clean_s:'Stop cached processes',trim:'Clear caches',trim_s:'Cache of all apps',dex:'Optimize apps',dex_s:'Compile with speed-profile',
+logbtn:'Load log',logbtn_s:'Last 40 lines',restore:'Restore defaults',log:'Log',lognotloaded:'Not loaded yet.',
+loading:'loading…',by:'by',daemon_run:'running',daemon_stop:'stopped',k_active:'Active profile',none:'None yet',k_gov:'CPU governor',k_ram:'Free RAM',k_swap:'Swappiness',k_temp:'Battery temp',k_batt:'Battery',
+sysdef:'System default',nomatch:'No matching apps.',added:'Added to game list',removed:'Removed from game list',
+confirm:'Restore all settings to their values from before the module was used?',logempty:'Log is empty.',failed:'Failed',
+notksu:'Open this page from KernelSU, APatch or KsuWebUI.',noresp:'Module is not responding',
+t_daily:'Daily profile active (auto-switch off)',t_game:'Game profile active (auto-switch off)',t_saved:'Saved',t_ram:'Available RAM: {a} MB → {b} MB',
+t_trim:'App caches cleared',t_dex:'Optimization started in the background (a few minutes)',t_restore:'Settings restored. Auto-switch turned off.'},
+id:{daily:'Daily',daily_s:'Halus & hemat',game:'Game',game_s:'Performa penuh',status:'Status',automation:'Otomatis',
+auto:'Ganti profil otomatis',auto_s:'Profil Game aktif saat aplikasi di daftar dibuka',dnd:'Jangan ganggu saat game',dnd_s:'DND dipulihkan setelah keluar dari game',
+refresh:'Refresh rate',rd_s:'Maksimum; minimum 60 Hz',rg_s:'Dikunci ke nilai ini',gamelist:'Daftar game',search:'Cari aplikasi terpasang',
+tools:'Alat',clean:'Bersihkan RAM',clean_s:'Hentikan proses cache',trim:'Bersihkan cache',trim_s:'Cache semua aplikasi',dex:'Optimasi aplikasi',dex_s:'Kompilasi speed-profile',
+logbtn:'Muat log',logbtn_s:'40 baris terakhir',restore:'Pulihkan bawaan',log:'Log',lognotloaded:'Belum dimuat.',
+loading:'memuat…',by:'oleh',daemon_run:'berjalan',daemon_stop:'mati',k_active:'Profil aktif',none:'Belum ada',k_gov:'Governor CPU',k_ram:'RAM bebas',k_swap:'Swappiness',k_temp:'Suhu baterai',k_batt:'Baterai',
+sysdef:'Bawaan sistem',nomatch:'Tidak ada aplikasi yang cocok.',added:'Ditambahkan ke daftar game',removed:'Dihapus dari daftar game',
+confirm:'Pulihkan semua pengaturan ke nilai sebelum modul dipakai?',logempty:'Log kosong.',failed:'Gagal',
+notksu:'Buka halaman ini lewat KernelSU, APatch, atau KsuWebUI.',noresp:'Modul tidak merespons',
+t_daily:'Profil Daily aktif (auto-switch mati)',t_game:'Profil Game aktif (auto-switch mati)',t_saved:'Tersimpan',t_ram:'RAM tersedia: {a} MB → {b} MB',
+t_trim:'Cache aplikasi dibersihkan',t_dex:'Optimasi berjalan di latar belakang (beberapa menit)',t_restore:'Pengaturan dipulihkan. Auto-switch dimatikan.'}
+};
 const $=s=>document.querySelector(s);
 const q1=a=>"'"+String(a).replace(/'/g,"'\\''")+"'";
-let games=new Set(),installed=[];
+let lang='en',S=null,games=new Set(),installed=[];
+try{const v=localStorage.getItem('sp_lang');lang=v&&I[v]?v:(navigator.language||'en').toLowerCase().startsWith('id')?'id':'en'}catch(e){lang=(navigator.language||'en').toLowerCase().startsWith('id')?'id':'en'}
+const t=k=>I[lang][k]??I.en[k]??k;
+
+function applyLang(){
+  document.documentElement.lang=lang;$('#lang').value=lang;
+  document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
+  document.querySelectorAll('[data-ph]').forEach(e=>{e.placeholder=t(e.dataset.ph);e.setAttribute('aria-label',t(e.dataset.ph))});
+  if(!$('#log').dataset.has)$('#log').textContent=t('lognotloaded');
+  render();renderList();
+}
 
 function exec(cmd){
   return new Promise(res=>{
-    if(typeof ksu==='undefined'){res({code:1,out:'',err:'Buka lewat KernelSU, APatch, atau KsuWebUI.'});return}
+    if(typeof ksu==='undefined'){res({code:1,out:'',err:t('notksu')});return}
     const cb='_cb'+Date.now()+Math.random().toString(36).slice(2);
     window[cb]=(c,o,e)=>{delete window[cb];res({code:c,out:(o||'').trim(),err:(e||'').trim()})};
     ksu.exec(cmd,'{}',cb);
   });
 }
 const sp=(...a)=>exec([BIN,...a.map(q1)].join(' '));
-let tt;function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2600)}
-async function act(...a){const r=await sp(...a);toast(r.code===0?(r.out||'OK'):(r.err||r.out||'Gagal'));await load();return r}
+let tt;function toast(m){const e=$('#toast');e.textContent=m;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2600)}
+async function act(ok,...a){
+  const r=await sp(...a);
+  toast(r.code===0?(typeof ok==='function'?ok(r.out):t(ok)):(r.err||r.out||t('failed')));
+  await load();return r;
+}
 
 function opts(sel,val){
   sel.innerHTML='';
-  [['','Bawaan sistem'],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']]
-    .forEach(([v,t])=>sel.add(new Option(t,v)));
-  sel.value=val;
+  [['',t('sysdef')],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']].forEach(([v,x])=>sel.add(new Option(x,v)));
+  sel.value=val||'';
 }
 
 async function load(){
   const r=await sp('status');
-  if(r.code!==0){$('#meta').textContent=r.err||'Modul tidak merespons';return}
-  const s=Object.fromEntries(r.out.split('\n').map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)]}));
+  if(r.code!==0){S=null;$('#meta').textContent=r.err||t('noresp');return}
+  S=Object.fromEntries(r.out.split('\n').map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)]}));
+  render();
+}
+function render(){
+  if(!S){if(!$('#meta').textContent)$('#meta').textContent=t('loading');return}
+  const s=S;
   document.body.classList.toggle('game',s.active==='game');
-  $('#meta').textContent=`${s.version} oleh @arqzey · daemon ${s.daemon==='1'?'berjalan':'mati'}`;
+  $('#meta').textContent=`${s.version} ${t('by')} @arqzey · daemon ${s.daemon==='1'?t('daemon_run'):t('daemon_stop')}`;
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===s.active));
   $('#auto').checked=s.auto==='1';$('#dnd').checked=s.dnd==='1';
   opts($('#rd'),s.refresh_daily);opts($('#rg'),s.refresh_game);
-  const used=s.ram_total-s.ram_free;
-  const cells=[['Profil aktif',s.active==='none'?'Belum ada':s.active],['Governor CPU',s.governor||'-'],
-    ['RAM bebas',`${s.ram_free} / ${s.ram_total} MB`],['Swappiness',s.swappiness||'-'],
-    ['Suhu baterai',s.temp?s.temp+' °C':'-'],['Baterai',s.battery?s.battery+'%':'-']];
+  const cells=[[t('k_active'),s.active==='none'?t('none'):t(s.active)],[t('k_gov'),s.governor||'-'],
+    [t('k_ram'),`${s.ram_free} / ${s.ram_total} MB`],[t('k_swap'),s.swappiness||'-'],
+    [t('k_temp'),s.temp?s.temp+' °C':'-'],[t('k_batt'),s.battery?s.battery+'%':'-']];
   $('#stat').innerHTML=cells.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join('');
 }
 
@@ -140,31 +184,33 @@ function renderList(){
   const all=[...new Set([...games,...installed])].filter(p=>p.toLowerCase().includes(f));
   all.sort((a,b)=>(games.has(b)-games.has(a))||a.localeCompare(b));
   const box=$('#list');box.innerHTML='';
-  if(!all.length){box.innerHTML='<label>Tidak ada aplikasi yang cocok.</label>';return}
+  if(!all.length){const l=document.createElement('label');l.textContent=t('nomatch');box.append(l);return}
   all.forEach(p=>{
     const l=document.createElement('label'),c=document.createElement('input');
     c.type='checkbox';c.checked=games.has(p);
     c.onchange=async()=>{
       const r=await sp('games',c.checked?'add':'remove',p);
       if(r.code!==0){c.checked=!c.checked;toast(r.err||r.out);return}
-      c.checked?games.add(p):games.delete(p);toast(c.checked?'Ditambahkan ke daftar game':'Dihapus dari daftar game');
+      c.checked?games.add(p):games.delete(p);toast(t(c.checked?'added':'removed'));
     };
     l.append(c,document.createTextNode(p));box.append(l);
   });
 }
 
-document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>act('profile',b.dataset.p));
-$('#auto').onchange=e=>act('set','AUTO_SWITCH',e.target.checked?1:0);
-$('#dnd').onchange=e=>act('set','GAME_DND',e.target.checked?1:0);
-$('#rd').onchange=e=>act('set','REFRESH_DAILY',e.target.value);
-$('#rg').onchange=e=>act('set','REFRESH_GAME',e.target.value);
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>act('t_'+b.dataset.p,'profile',b.dataset.p));
+$('#auto').onchange=e=>act('t_saved','set','AUTO_SWITCH',e.target.checked?1:0);
+$('#dnd').onchange=e=>act('t_saved','set','GAME_DND',e.target.checked?1:0);
+$('#rd').onchange=e=>act('t_saved','set','REFRESH_DAILY',e.target.value);
+$('#rg').onchange=e=>act('t_saved','set','REFRESH_GAME',e.target.value);
 $('#q').oninput=renderList;
-$('#clean').onclick=()=>act('clean');
-$('#trim').onclick=()=>act('trimcache');
-$('#dex').onclick=()=>act('dexopt');
-$('#restore').onclick=()=>{if(confirm('Pulihkan semua pengaturan ke nilai sebelum modul dipakai?'))act('restore')};
-$('#logbtn').onclick=async()=>{const r=await sp('log');$('#log').textContent=r.out||'Log kosong.'};
-load();loadGames();setInterval(load,10000);
+$('#clean').onclick=()=>act(o=>{const m=o.match(/(\d+) MB -> (\d+) MB/);return m?t('t_ram').replace('{a}',m[1]).replace('{b}',m[2]):t('t_saved')},'clean');
+$('#trim').onclick=()=>act('t_trim','trimcache');
+$('#dex').onclick=()=>act('t_dex','dexopt');
+$('#restore').onclick=()=>{if(confirm(t('confirm')))act('t_restore','restore')};
+$('#logbtn').onclick=async()=>{const r=await sp('log');const p=$('#log');p.dataset.has='1';p.textContent=r.out||t('logempty')};
+$('#lang').onchange=e=>{lang=e.target.value;try{localStorage.setItem('sp_lang',lang)}catch(x){}applyLang()};
+
+applyLang();load();loadGames();setInterval(load,10000);
 </script>
 </body>
 </html>

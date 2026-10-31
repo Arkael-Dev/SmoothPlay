@@ -1,4 +1,4 @@
 #!/system/bin/sh
-# Pengaturan settings (animasi, refresh rate) tidak bisa dipulihkan saat boot.
-# Tekan "Pulihkan bawaan" di WebUI sebelum menghapus modul.
+# System settings (animation scale, refresh rate) cannot be restored at boot.
+# Tap "Restore defaults" in the WebUI before removing the module.
 rm -rf /data/adb/smoothplay

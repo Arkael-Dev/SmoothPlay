@@ -1,8 +1,8 @@
 #!/bin/sh
-# pakai: sh release.sh 1.0.1 "catatan perubahan"
+# usage: sh release.sh 1.0.1 "release notes"
 set -e
 V="$1"; N="$2"
-[ -n "$V" ] && [ -n "$N" ] || { echo 'pakai: sh release.sh 1.0.1 "catatan perubahan"'; exit 1; }
+[ -n "$V" ] && [ -n "$N" ] || { echo 'usage: sh release.sh 1.0.1 "release notes"'; exit 1; }
 C=$(grep '^versionCode=' module.prop | cut -d= -f2); C=$((C+1))
 sed -i "s/^version=.*/version=v$V/; s/^versionCode=.*/versionCode=$C/" module.prop
 cat > update.json <<JSON
@@ -17,6 +17,6 @@ JSON
 mv CHANGELOG.t CHANGELOG.md
 for f in bin/smoothplay service.sh uninstall.sh customize.sh; do sh -n "$f"; done
 git add -A
-git commit -m "Rilis v$V"
+git commit -m "Release v$V"
 git push origin main
-echo "Terkirim. GitHub Actions sedang membuat Release v$V."
+echo "Pushed. GitHub Actions is building Release v$V."

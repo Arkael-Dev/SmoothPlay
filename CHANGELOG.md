@@ -1,4 +1,4 @@
 # Changelog
 
 ## v1.0.0
-- Rilis pertama: profil Daily/Game, auto-switch per aplikasi, refresh rate, DND, WebUI.
+- Initial release: Daily/Game profiles, per-app auto-switch, refresh rate control, Do Not Disturb, WebUI.

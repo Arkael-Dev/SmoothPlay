@@ -1,30 +1,42 @@
 # SmoothPlay
 
-Modul Magisk / KernelSU / APatch dengan WebUI untuk profil **Daily** dan **Game** yang berpindah otomatis per aplikasi.
+A Magisk / KernelSU / APatch module with a WebUI that switches between **Daily** and **Game** profiles automatically, per app.
 
 Author: [@arqzey](https://github.com/Arkael-Dev)
 
-## Fitur
-- **Profil Daily & Game**, dipilih manual atau otomatis.
-- **Auto-switch per aplikasi**: daemon ringan memeriksa aplikasi di depan tiap beberapa detik dan beralih ke Game bila ada di daftar.
-- **Profil Game**: governor CPU `performance` (jika tersedia), swappiness 40, vfs_cache_pressure 50, TCP `bbr` (jika tersedia), animasi 0.5x, refresh rate terkunci, DND opsional, dan `cmd game mode performance` pada Android 12+.
-- **Profil Daily**: mengembalikan nilai kernel bawaan, animasi 0.7x, refresh rate maksimum sesuai pilihan.
-- **Refresh rate** terpisah untuk Daily dan Game (via `min/peak_refresh_rate`).
-- **Daftar game** dipilih dari aplikasi terpasang.
-- **Alat**: bersihkan RAM (`am kill-all`), bersihkan cache (`pm trim-caches`), optimasi aplikasi (`cmd package compile -m speed-profile`).
-- **Pulihkan bawaan**: semua nilai asli disimpan sebelum perubahan pertama.
+## Features
+- **Daily and Game profiles**, selected manually or automatically.
+- **Per-app auto-switch**: a lightweight daemon checks the foreground app every few seconds and switches to Game when the app is on your game list.
+- **Game profile**: CPU governor `performance` (if available), swappiness 40, vfs_cache_pressure 50, TCP `bbr` (if available), 0.5x animations, locked refresh rate, optional Do Not Disturb, and `cmd game mode performance` on Android 12+.
+- **Daily profile**: restores the original kernel values, 0.7x animations, and your chosen maximum refresh rate.
+- **Refresh rate** configured separately for Daily and Game (via `min/peak_refresh_rate`).
+- **Game list** picked from your installed apps, with search.
+- **WebUI in English and Indonesian**: switch language from the header (saved automatically).
+- **Tools**: clean RAM (`am kill-all`), clear caches (`pm trim-caches`), optimize apps (`cmd package compile -m speed-profile`), and a log viewer.
+- **Restore defaults**: original values are saved before the first change.
 
-## Pasang
-1. Unduh `SmoothPlay-vX.Y.Z.zip` dari Releases.
-2. Flash lewat Magisk, KernelSU, atau APatch, lalu reboot.
-3. Buka WebUI dari manager. Di Magisk, gunakan aplikasi KsuWebUI.
+## Install
+1. Download `SmoothPlay-vX.Y.Z.zip` from [Releases](https://github.com/Arkael-Dev/SmoothPlay/releases).
+2. Flash it in Magisk, KernelSU or APatch, then reboot.
+3. Open the WebUI from your manager. On Magisk, use the KsuWebUI app.
 
-## Catatan
-- Beberapa perangkat (mis. Samsung) mengatur refresh rate lewat kunci lain; opsi refresh rate bisa tidak berpengaruh.
-- Tekan **Pulihkan bawaan** sebelum menghapus modul agar pengaturan animasi dan refresh rate kembali.
-- Perintah CLI: `su -c sh /data/adb/modules/smoothplay/bin/smoothplay status`
+## Notes
+- Some devices (e.g. Samsung) control refresh rate through other settings keys, so the refresh rate option may have no effect.
+- Tap **Restore defaults** before uninstalling so animation and refresh rate settings return to normal.
+- CLI: `su -c sh /data/adb/modules/smoothplay/bin/smoothplay status`
 
-## Build
+## Build and release
+Pushing a change to `module.prop`, `bin/`, `webroot/` or the install scripts triggers GitHub Actions, which builds the zip and publishes a Release for new versions.
+
+To ship an update from Termux:
+```
+sh release.sh 1.0.1 "What changed"
+```
+
+Build a zip locally:
 ```
 sh build.sh
 ```
+
+## License
+MIT
