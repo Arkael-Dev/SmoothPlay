@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.7
+- Status notification uses only the monochrome gamepad icon
+
 ## v1.1.6
 - Fix status notification not appearing after tapping options (posted via daemon, logs failures)
 
