@@ -16,6 +16,7 @@ GAMERES=$DATA/games.res
 TH_SVC=$DATA/thermal.svcs
 TH_MODE=$DATA/thermal.modes
 NLAST=$DATA/notify.last
+NREQ=$DATA/notify.req
 MODDIR=${0%/*}/..
 SDK=$(getprop ro.build.version.sdk)
 BOOTID=$(cat "$SYS/proc/sys/kernel/random/boot_id" 2>/dev/null)
@@ -390,15 +391,21 @@ notify() {  # text -> posts/replaces one notification using the module logo
   n1="cmd notification post -t '$ti' -i file://$ICON_T -I file://$LOGO_T 'SmoothPlay' '$1'"
   n2="cmd notification post -t '$ti' 'SmoothPlay' '$1'"
   for c in "$n1" "$n2"; do
-    $TO su -lp 2000 -c "$c" >/dev/null 2>&1 </dev/null && return 0
-    $TO sh -c "$c" >/dev/null 2>&1 </dev/null && return 0
+    o=$($TO su -lp 2000 -c "$c" 2>&1 </dev/null) && return 0
+    o2=$($TO sh -c "$c" 2>&1 </dev/null) && return 0
   done
+  log "notify failed: $(echo "$o $o2" | tr '\n' ' ' | cut -c1-160)"
   return 1
 }
 
 notify_state() {  # [force]
   load
   [ "$NOTIFY" = "1" ] || [ "$1" = "force" ] || return 0
+  # Posting works from the daemon's own context (that is why it appeared after a reboot),
+  # so a WebUI/CLI call only leaves a request and the daemon posts it within a second.
+  if [ "$(cat "$PIDF" 2>/dev/null)" != "$$" ] && daemon_alive; then
+    echo req > "$NREQ"; return 0
+  fi
   t=$(state_text)
   [ "$1" != "force" ] && [ "$(cat "$NLAST" 2>/dev/null)" = "$t" ] && return 0
   notify "$t" && echo "$t" > "$NLAST"
@@ -419,7 +426,7 @@ daemon() {
   echo $$ > "$PIDF"
   log "daemon started (pid $$)"
   load
-  rm -f "$NLAST"
+  rm -f "$NLAST" "$NREQ"
   rm -f "$INGAME"; ds_reset
   [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
   ( sleep 20; load
@@ -450,7 +457,11 @@ daemon() {
       key=""
       if [ -f "$INGAME" ]; then rm -f "$INGAME"; ds_reset; fi
     fi
-    sleep "${POLL:-4}"
+    i=0
+    while [ "$i" -lt "${POLL:-4}" ]; do
+      if [ -f "$NREQ" ]; then rm -f "$NREQ"; load; notify_state force; fi
+      sleep 1; i=$((i+1))
+    done
   done
 }
 
@@ -561,8 +572,9 @@ case "$1" in
       *) bad "usage: thermal {stopped|running|status}";;
     esac;;
   notify)
-    if notify "$(state_text)"; then echo OK; else echo "Could not post notification"; fi
-    rm -f "$NLAST";;
+    rm -f "$NLAST"
+    if daemon_alive; then echo req > "$NREQ"; echo OK
+    elif notify "$(state_text)"; then echo OK; else echo "Could not post notification"; fi;;
   games)
     case "$2" in
       add)    okpkg "$3" || { echo "invalid package"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
