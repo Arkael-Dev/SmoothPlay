@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.5
+- Fix KSU Next auto-update (updateJson), ZRAM rejected-size report
+
 ## v1.1.4
 - Per-game resolution dropdown, manual thermal Running/Stopped (no auto apply)
 
