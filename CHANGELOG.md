@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.6
+- Fix status notification not appearing after tapping options (posted via daemon, logs failures)
+
 ## v1.1.5
 - Fix KSU Next auto-update (updateJson), ZRAM rejected-size report
 
