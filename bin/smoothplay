@@ -22,8 +22,6 @@ SDK=$(getprop ro.build.version.sdk)
 BOOTID=$(cat "$SYS/proc/sys/kernel/random/boot_id" 2>/dev/null)
 LOGO_T=/data/local/tmp/smoothplay_logo.png
 ICON_T=/data/local/tmp/smoothplay_icon.png
-ZD=$SYS/sys/block/zram0
-ZDEV=/dev/block/zram0
 
 mkdir -p "$DATA"; touch "$GAMES" "$GAMERES"
 if [ ! -f "$CONF" ]; then
@@ -87,9 +85,6 @@ gpu_avail() {
   g=$(gpu_gov_path); [ -n "$g" ] && tr -d '[]' < "${g%/*}/available_governors" 2>/dev/null
 }
 tcp_avail() { cat "$SYS/proc/sys/net/ipv4/tcp_available_congestion_control" 2>/dev/null; }
-zram_algos() { tr -d '[]' < "$ZD/comp_algorithm" 2>/dev/null; }
-zram_algo_cur() { sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$ZD/comp_algorithm" 2>/dev/null | head -n 1; }
-zram_size_cur() { cat "$ZD/disksize" 2>/dev/null; }
 batt_temp() { [ -r "$SYS/sys/class/power_supply/battery/temp" ] && echo $(( $(cat "$SYS/sys/class/power_supply/battery/temp") / 10 )); }
 
 # ---------- baseline ----------
@@ -112,7 +107,6 @@ backup() {
   # entries added in later versions (also for baselines saved by older ones)
   g=$(gpu_gov_path)
   if [ -n "$g" ] && ! grep -qF "F|$g|" "$ORIG"; then echo "F|$g|$(cat "$g")" >> "$ORIG"; fi
-  if [ -d "$ZD" ] && ! grep -q '^Z|' "$ORIG"; then echo "Z|$(zram_size_cur)|$(zram_algo_cur)" >> "$ORIG"; fi
 }
 
 restore_sys() {
@@ -134,8 +128,7 @@ restore_all() {
   restore_sys
   grep '^S|' "$ORIG" | while IFS='|' read -r t ns k v; do restore_S "$ns" "$k"; done
   dnd_restore
-  setconf ZRAM_MB ""; setconf ZRAM_ALGO ""; load
-  zram_sync >/dev/null 2>&1
+  load
   rm -f "$ACTIVE"
   setconf AUTO_SWITCH 0
   log "restored to defaults"
@@ -275,38 +268,6 @@ thermal_guard() {
   fi
 }
 
-# --- ZRAM
-zram_apply() {  # bytes algo
-  [ -d "$ZD" ] || { echo "ZRAM is not available on this kernel"; return 1; }
-  nb=$1; al=$2; ob=$(zram_size_cur)
-  isnum "$nb" || return 1
-  [ "$nb" = "$ob" ] && { [ -z "$al" ] || [ "$al" = "$(zram_algo_cur)" ]; } && return 0
-  avail=$(meminfo MemAvailable); used=$(( $(meminfo SwapTotal) - $(meminfo SwapFree) ))
-  if [ $((used + 300)) -gt "$avail" ]; then
-    echo "Not enough free RAM (${avail} MB) to resize ZRAM safely. Clean RAM first."; return 1
-  fi
-  swapoff "$ZDEV" >/dev/null 2>&1 || { echo "Could not turn off ZRAM swap"; return 1; }
-  echo 1 > "$ZD/reset"
-  [ -n "$al" ] && echo "$al" > "$ZD/comp_algorithm" 2>/dev/null
-  rc=0
-  echo "$nb" > "$ZD/disksize" 2>/dev/null || { echo "$ob" > "$ZD/disksize" 2>/dev/null; rc=1; }
-  mkswap "$ZDEV" >/dev/null 2>&1; swapon "$ZDEV" >/dev/null 2>&1
-  log "zram: $(( $(zram_size_cur) / 1048576 )) MB, $(zram_algo_cur)"
-  [ "$rc" = 1 ] && { log "zram: kernel rejected $(( nb / 1048576 )) MB, kept old size"; echo "Kernel rejected that ZRAM size"; return 1; }
-  return 0
-}
-
-zram_sync() {
-  [ -d "$ZD" ] || return 0
-  backup
-  bl=$(grep '^Z|' "$ORIG" | head -n 1)
-  bb=$(echo "$bl" | cut -d'|' -f2); ba=$(echo "$bl" | cut -d'|' -f3)
-  if [ -n "$ZRAM_MB" ]; then nb=$((ZRAM_MB * 1048576)); else nb=$bb; fi
-  al=${ZRAM_ALGO:-$ba}
-  [ -n "$nb" ] || return 0
-  zram_apply "$nb" "$al"
-}
-
 # ---------- profiles ----------
 p_daily() {
   restore_sys
@@ -377,7 +338,6 @@ state_text() {
   p=$(cat "$DSP" 2>/dev/null)
   isnum "$p" && [ "$p" -lt 100 ] && _add "Downscale ${p}%"
   if th_active; then [ $id = 1 ] && _add "Thermal MATI" || _add "Thermal OFF"; fi
-  [ -n "$ZRAM_MB" ] && _add "ZRAM ${ZRAM_MB} MB"
   if [ -z "$out" ]; then [ $id = 1 ] && out="Siaga" || out="Standby"; fi
   echo "$out"
 }
@@ -443,7 +403,6 @@ daemon() {
   rm -f "$INGAME"; ds_reset
   [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
   ( sleep 20; load
-    zram_sync
     notify_state ) >/dev/null 2>&1 </dev/null &
   key=""; lastgame=""
   while :; do
@@ -509,16 +468,6 @@ status() {
   echo "tcp_game=$TCP_GAME"
   echo "tcp_now=$(cat "$SYS/proc/sys/net/ipv4/tcp_congestion_control" 2>/dev/null)"
   echo "tcp_avail=$(tcp_avail)"
-  if [ -d "$ZD" ]; then
-    echo "zram=1"
-    echo "zram_mb=$(( $(zram_size_cur) / 1048576 ))"
-    echo "zram_algo=$(zram_algo_cur)"
-    echo "zram_algos=$(zram_algos | tr -s ' \n' ' ')"
-    echo "zram_cfg_mb=$ZRAM_MB"
-    echo "zram_cfg_algo=$ZRAM_ALGO"
-  else
-    echo "zram=0"
-  fi
   echo "summary=$(state_text)"
   echo "swappiness=$(cat "$SYS/proc/sys/vm/swappiness" 2>/dev/null)"
   echo "ram_free=$(meminfo MemAvailable)"
@@ -559,8 +508,6 @@ case "$1" in
       SWAP_GAME) isnum "$v" && [ "$v" -le 200 ] || bad "Swappiness 0-200";;
       VFS_GAME) isnum "$v" && [ "$v" -ge 1 ] && [ "$v" -le 500 ] || bad "Cache pressure 1-500";;
       TCP_GAME) [ -z "$v" ] || inlist "$v" $(tcp_avail) || bad "TCP algorithm not available";;
-      ZRAM_MB) [ -z "$v" ] || { isnum "$v" && [ "$v" -ge 256 ] && [ "$v" -le 16384 ]; } || bad "ZRAM 256-16384 MB";;
-      ZRAM_ALGO) [ -z "$v" ] || inlist "$v" $(zram_algos) || bad "ZRAM algorithm not available";;
       *) bad "unknown key";;
     esac
     eval "ov=\${$k}"
@@ -568,8 +515,6 @@ case "$1" in
     case "$k" in
       REFRESH_*|GAME_DND|CPU_GOV_*|GPU_GOV_*|SWAP_GAME|VFS_GAME|TCP_GAME)
         a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";;
-      ZRAM_*)
-        if ! zram_sync; then setconf "$k" "$ov"; load; exit 1; fi;;
       NOTIFY) [ "$v" = "1" ] && notify_state force;;
     esac
     notify_state

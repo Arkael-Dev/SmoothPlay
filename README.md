@@ -16,7 +16,7 @@ Author: [@arqzey](https://github.com/Arkael-Dev)
 - **Per-game resolution**: each game in the list has its own resolution (native, 90% to 30%), applied only while that game is open; everything else stays native.
 - **Thermal (manual)**: Stopped sets every running `init.svc.*thermal*` service to stopped via resetprop and hides temp sensors; Running restores them. Never applied automatically and returns to Running after reboot. Optional battery-temperature safety cutoff.
 - **Status notification** with the SmoothPlay logo listing the active features (`cmd notification`).
-- **Manual advanced options**: swappiness, cache pressure, TCP algorithm, ZRAM size and algorithm.
+- **Manual advanced options**: swappiness, cache pressure and TCP algorithm.
 - **Tools**: clean RAM (`am kill-all`), clear caches (`pm trim-caches`), optimize apps (`cmd package compile -m speed-profile`), trim storage (`fstrim`), test notification, and a log viewer.
 - **Restore defaults**: original values are saved before the first change.
 

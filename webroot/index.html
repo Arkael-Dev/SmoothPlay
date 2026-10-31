@@ -141,8 +141,6 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
   <label class="row"><span><span data-i="swap_g"></span><small data-i="swap_s"></small></span><select id="swp"></select></label>
   <label class="row"><span><span data-i="vfs_g"></span><small data-i="vfs_s"></small></span><select id="vfs"></select></label>
   <label class="row"><span><span data-i="tcp_g"></span><small data-i="tcp_s"></small></span><select id="tcp"></select></label>
-  <label class="row" id="zr1" hidden><span><span data-i="zram_sz"></span><small id="zram_now"></small></span><select id="zsz"></select></label>
-  <label class="row" id="zr2" hidden><span><span data-i="zram_al"></span><small data-i="zram_al_s"></small></span><select id="zal"></select></label>
 </div>
 
 <h2 data-i="gamelist"></h2>
@@ -189,8 +187,8 @@ ds_note:'Resolution is set per game, only while that game is open. Normal use st
 thermal:'Thermal',th_sw:'Thermal services',th_sw_s:'Manual. Stopped = all thermal services set to stopped and sensors hidden (~20s to apply). Running = back to normal. Returns to Running after every reboot.',
 th_guard:'Safety cutoff',th_guard_s:'Thermal turns back on at this battery temperature',off:'Off',
 th_confirm:'Disabling thermal protection can overheat the phone and damage the battery. Continue?',
-advanced:'Advanced (manual)',swap_g:'Swappiness: Game',swap_s:'Higher = uses ZRAM more',vfs_g:'Cache pressure: Game',vfs_s:'Lower = keeps file cache longer',
-tcp_g:'TCP algorithm: Game',tcp_s:'Auto = bbr if available',zram_sz:'ZRAM size',zram_now:'Now: {a}',zram_al:'ZRAM algorithm',zram_al_s:'Needs a ZRAM reset; free RAM is checked first',
+advanced:'Advanced (manual)',swap_g:'Swappiness: Game',swap_s:'Higher = swaps more aggressively',vfs_g:'Cache pressure: Game',vfs_s:'Lower = keeps file cache longer',
+tcp_g:'TCP algorithm: Game',tcp_s:'Auto = bbr if available',
 t_daily:'Daily profile active (auto-switch off)',t_game:'Game profile active (auto-switch off)',t_saved:'Saved',t_ram:'Available RAM: {a} MB → {b} MB',
 t_trim:'App caches cleared',t_dex:'Optimization started in the background (a few minutes)',t_restore:'Settings restored. Auto-switch turned off.',
 t_th_off:'Thermal disabled',t_th_on:'Thermal restored',t_fstrim:'Storage trim started in the background',t_notif:'Notification sent'},
@@ -215,8 +213,8 @@ ds_note:'Resolusi diatur per game, hanya aktif saat game itu dibuka. Pemakaian n
 thermal:'Thermal',th_sw:'Layanan thermal',th_sw_s:'Manual. Stopped = semua layanan thermal di-stop dan sensor suhu disembunyikan (~20 detik). Running = kembali normal. Otomatis Running lagi setiap reboot.',
 th_guard:'Batas pengaman',th_guard_s:'Thermal menyala lagi saat suhu baterai mencapai nilai ini',off:'Mati',
 th_confirm:'Mematikan proteksi thermal bisa membuat HP terlalu panas dan merusak baterai. Lanjutkan?',
-advanced:'Lanjutan (manual)',swap_g:'Swappiness: Game',swap_s:'Lebih tinggi = lebih banyak pakai ZRAM',vfs_g:'Cache pressure: Game',vfs_s:'Lebih rendah = cache file bertahan lebih lama',
-tcp_g:'Algoritma TCP: Game',tcp_s:'Otomatis = bbr jika ada',zram_sz:'Ukuran ZRAM',zram_now:'Sekarang: {a}',zram_al:'Algoritma ZRAM',zram_al_s:'Perlu reset ZRAM; RAM bebas diperiksa dulu',
+advanced:'Lanjutan (manual)',swap_g:'Swappiness: Game',swap_s:'Lebih tinggi = lebih agresif swap',vfs_g:'Cache pressure: Game',vfs_s:'Lebih rendah = cache file bertahan lebih lama',
+tcp_g:'Algoritma TCP: Game',tcp_s:'Otomatis = bbr jika ada',
 t_daily:'Profil Daily aktif (auto-switch mati)',t_game:'Profil Game aktif (auto-switch mati)',t_saved:'Tersimpan',t_ram:'RAM tersedia: {a} MB → {b} MB',
 t_trim:'Cache aplikasi dibersihkan',t_dex:'Optimasi berjalan di latar belakang (beberapa menit)',t_restore:'Pengaturan dipulihkan. Auto-switch dimatikan.',
 t_th_off:'Thermal dimatikan',t_th_on:'Thermal dipulihkan',t_fstrim:'Trim penyimpanan berjalan di latar belakang',t_notif:'Notifikasi terkirim'}
@@ -287,7 +285,6 @@ function chips(s){
   if(a==='game'&&s.dnd==='1')c.push('DND');
   if(+s.ds_now<100)c.push(`${t('downscale')} ${s.ds_now}%`);
   if(s.thermal_off==='1')c.push(t('th_chip'));
-  if(s.zram_cfg_mb)c.push('ZRAM '+s.zram_cfg_mb+' MB');
   return c;
 }
 
@@ -325,12 +322,6 @@ function render(){
   fillSel($('#swp'),numItems([0,10,20,30,40,60,80,100],s.swap_game),s.swap_game);
   fillSel($('#vfs'),numItems([25,50,75,100,150,200],s.vfs_game),s.vfs_game);
   fillSel($('#tcp'),govItems(s.tcp_avail,s.tcp_game,A),s.tcp_game);
-  const z=s.zram==='1';$('#zr1').hidden=!z;$('#zr2').hidden=!z;
-  if(z){
-    $('#zram_now').textContent=t('zram_now').replace('{a}',`${s.zram_mb} MB ${s.zram_algo||''}`.trim());
-    fillSel($('#zsz'),[['',t('sysdef')],...numItems([1024,2048,3072,4096,6144,8192],s.zram_cfg_mb).map(([v,x])=>[v,x+' MB'])],s.zram_cfg_mb);
-    fillSel($('#zal'),govItems(s.zram_algos,s.zram_cfg_algo,t('sysdef')),s.zram_cfg_algo);
-  }
 
   const cells=[[t('k_active'),s.active==='none'?t('none'):t(s.active)],[t('k_gov'),s.governor||'-'],
     [t('k_gpu'),s.gpu_governor||'-'],[t('k_ram'),`${s.ram_free} / ${s.ram_total} MB`],
@@ -386,7 +377,6 @@ $('#notify').onchange=e=>act('t_saved','set','NOTIFY',e.target.checked?1:0);
 bindSel('rd','REFRESH_DAILY');bindSel('rg','REFRESH_GAME');
 bindSel('cd','CPU_GOV_DAILY');bindSel('cg','CPU_GOV_GAME');bindSel('gd','GPU_GOV_DAILY');bindSel('gg','GPU_GOV_GAME');
 bindSel('thg','THERMAL_GUARD');bindSel('swp','SWAP_GAME');bindSel('vfs','VFS_GAME');bindSel('tcp','TCP_GAME');
-bindSel('zsz','ZRAM_MB',true);bindSel('zal','ZRAM_ALGO',true);
 $('#th').onchange=e=>{
   if(e.target.value==='stopped'){
     if(!confirm(t('th_confirm'))){e.target.value='running';return}
