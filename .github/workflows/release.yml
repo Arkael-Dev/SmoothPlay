@@ -18,6 +18,12 @@ jobs:
       - name: Check syntax
         run: for f in bin/smoothplay service.sh uninstall.sh customize.sh; do sh -n "$f"; done
 
+      - name: Check update config
+        run: |
+          grep -q '^updateJson=https://raw.githubusercontent.com/Arkael-Dev/SmoothPlay/main/update.json$' module.prop || echo "::warning::module.prop is missing updateJson"
+          V=$(grep '^version=' module.prop | cut -d= -f2)
+          grep -q "\"version\": \"$V\"" update.json || echo "::warning::update.json version does not match module.prop ($V)"
+
       - name: Build zip
         id: b
         run: |

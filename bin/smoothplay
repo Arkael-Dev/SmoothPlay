@@ -287,9 +287,11 @@ zram_apply() {  # bytes algo
   swapoff "$ZDEV" >/dev/null 2>&1 || { echo "Could not turn off ZRAM swap"; return 1; }
   echo 1 > "$ZD/reset"
   [ -n "$al" ] && echo "$al" > "$ZD/comp_algorithm" 2>/dev/null
-  echo "$nb" > "$ZD/disksize" 2>/dev/null || echo "$ob" > "$ZD/disksize"
+  rc=0
+  echo "$nb" > "$ZD/disksize" 2>/dev/null || { echo "$ob" > "$ZD/disksize" 2>/dev/null; rc=1; }
   mkswap "$ZDEV" >/dev/null 2>&1; swapon "$ZDEV" >/dev/null 2>&1
   log "zram: $(( $(zram_size_cur) / 1048576 )) MB, $(zram_algo_cur)"
+  [ "$rc" = 1 ] && { log "zram: kernel rejected $(( nb / 1048576 )) MB, kept old size"; echo "Kernel rejected that ZRAM size"; return 1; }
   return 0
 }
 
