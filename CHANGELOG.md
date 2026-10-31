@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.3
+- Downscale now applies only to detected games; Daily always native resolution
+
 ## v1.1.1
 - Gaming-style animated WebUI, gamepad logo, module banner, LSPosed-style status notification, stable release
 

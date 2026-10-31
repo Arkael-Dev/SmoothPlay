@@ -1,7 +1,7 @@
 id=smoothplay
 name=SmoothPlay
-version=v1.1.1
-versionCode=4
+version=v1.1.3
+versionCode=5
 author=@arqzey
 description=Daily and Game profiles with per-app auto-switch, CPU/GPU governor, downscale, thermal toggle, status notification and a gaming WebUI.
 updateJson=https://raw.githubusercontent.com/Arkael-Dev/SmoothPlay/main/update.json
