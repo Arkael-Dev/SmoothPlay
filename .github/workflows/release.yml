@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     branches: [main]
-    paths: [module.prop, bin/**, webroot/**, customize.sh, service.sh, uninstall.sh]
+    paths: [module.prop, banner.png, bin/**, webroot/**, customize.sh, service.sh, uninstall.sh]
   workflow_dispatch:
 
 permissions:

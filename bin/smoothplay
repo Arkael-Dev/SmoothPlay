@@ -36,7 +36,7 @@ fi
 load() {
   . "$CONF"
   : "${NOTIFY:=1}" "${DOWNSCALE_DAILY:=100}" "${DOWNSCALE_GAME:=100}" "${THERMAL_GUARD:=50}"
-  : "${SWAP_GAME:=40}" "${VFS_GAME:=50}" "${THERMAL_OFF:=0}"
+  : "${SWAP_GAME:=40}" "${VFS_GAME:=50}" "${THERMAL_OFF:=0}" "${UILANG:=en}"
 }
 load
 
@@ -331,7 +331,11 @@ _add() { out="${out:+$out | }$1"; }
 state_text() {
   load; out=""
   a=$(cat "$ACTIVE" 2>/dev/null)
-  case "$a" in game) _add "Game profile";; daily) _add "Daily profile";; esac
+  id=0; [ "$UILANG" = "id" ] && id=1
+  case "$a" in
+    game)  [ $id = 1 ] && _add "Profil Game"  || _add "Game profile";;
+    daily) [ $id = 1 ] && _add "Profil Daily" || _add "Daily profile";;
+  esac
   r=""; cg=""; gg=""
   [ "$a" = game ] && { r=$REFRESH_GAME; cg=$CPU_GOV_GAME; gg=$GPU_GOV_GAME; }
   [ "$a" = daily ] && { r=$REFRESH_DAILY; cg=$CPU_GOV_DAILY; gg=$GPU_GOV_DAILY; }
@@ -341,9 +345,10 @@ state_text() {
   [ "$a" = game ] && [ "$GAME_DND" = "1" ] && _add "DND"
   p=$(cat "$DSP" 2>/dev/null)
   isnum "$p" && [ "$p" -lt 100 ] && _add "Downscale ${p}%"
-  th_active && _add "Thermal OFF"
+  if th_active; then [ $id = 1 ] && _add "Thermal MATI" || _add "Thermal OFF"; fi
   [ -n "$ZRAM_MB" ] && _add "ZRAM ${ZRAM_MB} MB"
-  echo "${out:-Standby}"
+  if [ -z "$out" ]; then [ $id = 1 ] && out="Siaga" || out="Standby"; fi
+  echo "$out"
 }
 
 notify() {  # text -> posts/replaces one notification using the module logo
@@ -351,8 +356,9 @@ notify() {  # text -> posts/replaces one notification using the module logo
   cp -f "$MODDIR/webroot/logo.png" "$LOGO_T" 2>/dev/null; cp -f "$MODDIR/webroot/icon.png" "$ICON_T" 2>/dev/null
   chmod 644 "$LOGO_T" "$ICON_T" 2>/dev/null
   TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 10"
-  n1="cmd notification post -S bigtext -t 'SmoothPlay' -i file://$ICON_T -I file://$LOGO_T 'SmoothPlay' '$1'"
-  n2="cmd notification post -t 'SmoothPlay' 'SmoothPlay' '$1'"
+  ti="SmoothPlay is active"; [ "$UILANG" = "id" ] && ti="SmoothPlay aktif"
+  n1="cmd notification post -t '$ti' -i file://$ICON_T -I file://$LOGO_T 'SmoothPlay' '$1'"
+  n2="cmd notification post -t '$ti' 'SmoothPlay' '$1'"
   for c in "$n1" "$n2"; do
     $TO su -lp 2000 -c "$c" >/dev/null 2>&1 </dev/null && return 0
     $TO sh -c "$c" >/dev/null 2>&1 </dev/null && return 0
@@ -445,6 +451,7 @@ status() {
   echo "thermal_cfg=$THERMAL_OFF"
   echo "thermal_guard=$THERMAL_GUARD"
   echo "notify=$NOTIFY"
+  echo "uilang=$UILANG"
   echo "swap_game=$SWAP_GAME"
   echo "vfs_game=$VFS_GAME"
   echo "tcp_game=$TCP_GAME"
@@ -490,6 +497,7 @@ case "$1" in
   set)
     k=$2; v=$3
     case "$k" in
+      UILANG) case "$v" in en|id) ;; *) bad "invalid value";; esac;;
       AUTO_SWITCH|GAME_DND|NOTIFY) case "$v" in 0|1) ;; *) bad "invalid value";; esac;;
       REFRESH_DAILY|REFRESH_GAME) [ -z "$v" ] || isnum "$v" || bad "invalid value";;
       POLL) isnum "$v" && [ "$v" -ge 2 ] && [ "$v" -le 30 ] || bad "POLL 2-30";;
@@ -526,7 +534,7 @@ case "$1" in
       *) bad "usage: thermal {disable|enable|status}";;
     esac;;
   notify)
-    if notify "Test notification - SmoothPlay is working"; then echo OK; else echo "Could not post notification"; fi
+    if notify "$(state_text)"; then echo OK; else echo "Could not post notification"; fi
     rm -f "$NLAST";;
   games)
     case "$2" in
