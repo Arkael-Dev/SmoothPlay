@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.4
+- Per-game resolution dropdown, manual thermal Running/Stopped (no auto apply)
+
 ## v1.1.3
 - Downscale now applies only to detected games; Daily always native resolution
 
