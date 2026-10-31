@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.9
+- Remove ZRAM feature
+
 ## v1.1.8
 - Fix status notification not appearing after tapping options (posted via daemon, logs failures)
 
