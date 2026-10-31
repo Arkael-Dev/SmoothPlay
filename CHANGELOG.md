@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.1.0
+- Manual CPU/GPU governor, downscale 100-30%, thermal toggle, status notification, ZRAM/VM options
+
 ## v1.0.2
 - WebUI: add English and Indonesian language switch
 
