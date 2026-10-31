@@ -5,39 +5,54 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SmoothPlay</title>
 <style>
-:root{--bg:#f3f4f8;--surface:#fff;--ink:#1c2030;--mute:#667;--line:#dde0ea;--daily:#2f9c8f;--game:#d98a1c;--accent:var(--daily);--on:#fff}
-@media (prefers-color-scheme:dark){:root{--bg:#171a26;--surface:#212536;--ink:#e8eaf2;--mute:#9aa0b8;--line:#33384d;--daily:#4fb8aa;--game:#f0b04a;--on:#10131c}}
+:root{--bg:#f3f4f8;--surface:#fff;--ink:#1c2030;--mute:#667;--line:#dde0ea;--daily:#2f9c8f;--game:#d98a1c;--accent:var(--daily);--on:#fff;--bad:#d1453b}
+@media (prefers-color-scheme:dark){:root{--bg:#171a26;--surface:#212536;--ink:#e8eaf2;--mute:#9aa0b8;--line:#33384d;--daily:#4fb8aa;--game:#f0b04a;--on:#10131c;--bad:#ef6a5f}}
 body.game{--accent:var(--game)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif;padding:0 14px calc(28px + env(safe-area-inset-bottom,0px))}
 header{padding:calc(22px + env(safe-area-inset-top,0px)) 4px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 h1{margin:0;font-size:26px;letter-spacing:-.4px}
 header p{margin:2px 0 0;color:var(--mute);font-size:13px}
 h2{font-size:13px;font-weight:600;color:var(--mute);margin:22px 4px 8px}
+.note{margin:6px 4px 0;color:var(--mute);font-size:12px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.banner{display:flex;gap:12px;align-items:center;padding:14px;margin-bottom:10px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px}
+.banner img{width:46px;height:46px;border-radius:12px;flex:none}
+.banner b{display:flex;align-items:center;gap:8px;font-size:16px}
+.banner b em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.6px;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:0 5px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chips i{font-style:normal;font-size:12px;padding:2px 9px;border-radius:99px;background:var(--accent);color:var(--on)}
+.chips span{color:var(--mute);font-size:13px}
+.warn{margin-bottom:10px;padding:11px 14px;border:1px solid var(--bad);border-radius:12px;background:rgba(209,69,59,.12);font-size:13px}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px}
 .seg button{border:0;border-radius:10px;padding:16px 8px;background:transparent;color:var(--ink);font:inherit;font-weight:600;text-align:left}
 .seg button small{display:block;font-weight:400;color:var(--mute);margin-top:2px}
 .seg button.on{background:var(--accent);color:var(--on)}
 .seg button.on small{color:var(--on);opacity:.8}
 .grid{display:grid;grid-template-columns:1fr 1fr}
-.grid div{padding:11px 14px;border-bottom:1px solid var(--line)}
+.grid div{padding:11px 14px;border-bottom:1px solid var(--line);min-width:0}
 .grid div:nth-child(odd){border-right:1px solid var(--line)}
 .grid div:nth-last-child(-n+2){border-bottom:0}
-.grid b{display:block;font-size:16px}
+.grid b{display:block;font-size:16px;overflow-wrap:anywhere}
 .grid span{color:var(--mute);font-size:12px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
 .row small{display:block;color:var(--mute);font-size:12px}
-select,input[type=search]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px}
-input[type=search]{width:100%;margin:10px 0 0}
+.row.col{flex-direction:column;align-items:stretch;gap:6px}
+.row .top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.row .top b{font-variant-numeric:tabular-nums}
+select,input[type=search]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px;max-width:48%}
+input[type=search]{width:100%;max-width:none;margin:10px 0 0}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
 .sw{appearance:none;width:46px;height:28px;border-radius:14px;background:var(--line);position:relative;flex:none;transition:background .15s}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
 .sw:checked{background:var(--accent)}.sw:checked::after{transform:translateX(18px)}
+.sw.bad:checked{background:var(--bad)}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tools button,.danger{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:14px 10px;font:inherit;font-weight:600}
 .tools button small{display:block;font-weight:400;color:var(--mute);font-size:12px;margin-top:2px}
-.danger{width:100%;margin-top:8px;color:#d1453b}
+.danger{width:100%;margin-top:8px;color:var(--bad)}
 #list{max-height:300px;overflow:auto}
 #list label{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);word-break:break-all;font-size:13px}
 #list input{width:18px;height:18px;accent-color:var(--accent);flex:none}
@@ -54,6 +69,12 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
   <select id="lang" aria-label="Language"><option value="en">English</option><option value="id">Indonesia</option></select>
 </header>
 
+<div class="banner">
+  <img src="logo.png" alt="">
+  <div><b>SmoothPlay <em data-i="beta"></em></b><div class="chips" id="chips"></div></div>
+</div>
+<div class="warn" id="warn" role="alert" hidden data-i="warn_th"></div>
+
 <div class="card seg" id="seg">
   <button data-p="daily" type="button"><span data-i="daily"></span><small data-i="daily_s"></small></button>
   <button data-p="game" type="button"><span data-i="game"></span><small data-i="game_s"></small></button>
@@ -66,12 +87,43 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
 <div class="card">
   <label class="row"><span><span data-i="auto"></span><small data-i="auto_s"></small></span><input class="sw" type="checkbox" id="auto"></label>
   <label class="row"><span><span data-i="dnd"></span><small data-i="dnd_s"></small></span><input class="sw" type="checkbox" id="dnd"></label>
+  <label class="row"><span><span data-i="notify"></span><small data-i="notify_s"></small></span><input class="sw" type="checkbox" id="notify"></label>
 </div>
 
 <h2 data-i="refresh"></h2>
 <div class="card">
   <label class="row"><span><span data-i="daily"></span><small data-i="rd_s"></small></span><select id="rd"></select></label>
   <label class="row"><span><span data-i="game"></span><small data-i="rg_s"></small></span><select id="rg"></select></label>
+</div>
+
+<h2 data-i="governors"></h2>
+<div class="card">
+  <label class="row"><span><span data-i="cpu_d"></span><small data-i="cpu_d_s"></small></span><select id="cd"></select></label>
+  <label class="row"><span><span data-i="cpu_g"></span><small data-i="cpu_g_s"></small></span><select id="cg"></select></label>
+  <label class="row"><span><span data-i="gpu_d"></span><small data-i="gpu_d_s"></small></span><select id="gd"></select></label>
+  <label class="row"><span><span data-i="gpu_g"></span><small data-i="gpu_g_s"></small></span><select id="gg"></select></label>
+</div>
+
+<h2 data-i="res"></h2>
+<div class="card">
+  <div class="row col"><div class="top"><span><span data-i="daily"></span><small data-i="ds_d_s"></small></span><b id="dsd_v"></b></div><input type="range" id="dsd" min="30" max="100" step="5" aria-labelledby="dsd_v"></div>
+  <div class="row col"><div class="top"><span><span data-i="game"></span><small data-i="ds_g_s"></small></span><b id="dsg_v"></b></div><input type="range" id="dsg" min="30" max="100" step="5" aria-labelledby="dsg_v"></div>
+</div>
+<p class="note" data-i="ds_note"></p>
+
+<h2 data-i="thermal"></h2>
+<div class="card">
+  <label class="row"><span><span data-i="th_sw"></span><small data-i="th_sw_s"></small></span><input class="sw bad" type="checkbox" id="th"></label>
+  <label class="row"><span><span data-i="th_guard"></span><small data-i="th_guard_s"></small></span><select id="thg"></select></label>
+</div>
+
+<h2 data-i="advanced"></h2>
+<div class="card">
+  <label class="row"><span><span data-i="swap_g"></span><small data-i="swap_s"></small></span><select id="swp"></select></label>
+  <label class="row"><span><span data-i="vfs_g"></span><small data-i="vfs_s"></small></span><select id="vfs"></select></label>
+  <label class="row"><span><span data-i="tcp_g"></span><small data-i="tcp_s"></small></span><select id="tcp"></select></label>
+  <label class="row" id="zr1" hidden><span><span data-i="zram_sz"></span><small id="zram_now"></small></span><select id="zsz"></select></label>
+  <label class="row" id="zr2" hidden><span><span data-i="zram_al"></span><small data-i="zram_al_s"></small></span><select id="zal"></select></label>
 </div>
 
 <h2 data-i="gamelist"></h2>
@@ -83,6 +135,8 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
   <button type="button" id="clean"><span data-i="clean"></span><small data-i="clean_s"></small></button>
   <button type="button" id="trim"><span data-i="trim"></span><small data-i="trim_s"></small></button>
   <button type="button" id="dex"><span data-i="dex"></span><small data-i="dex_s"></small></button>
+  <button type="button" id="fstrim"><span data-i="fstrim"></span><small data-i="fstrim_s"></small></button>
+  <button type="button" id="tnotif"><span data-i="tnotif"></span><small data-i="tnotif_s"></small></button>
   <button type="button" id="logbtn"><span data-i="logbtn"></span><small data-i="logbtn_s"></small></button>
 </div>
 <button class="danger" type="button" id="restore" data-i="restore"></button>
@@ -96,26 +150,56 @@ const BIN='/data/adb/modules/smoothplay/bin/smoothplay';
 const I={
 en:{daily:'Daily',daily_s:'Smooth & efficient',game:'Game',game_s:'Full performance',status:'Status',automation:'Automation',
 auto:'Auto-switch profile',auto_s:'Game profile starts when a listed app is opened',dnd:'Do Not Disturb in games',dnd_s:'DND is restored when you leave the game',
+notify:'Status notification',notify_s:'Shows the active features with the SmoothPlay logo',
 refresh:'Refresh rate',rd_s:'Maximum; minimum 60 Hz',rg_s:'Locked to this value',gamelist:'Game list',search:'Search installed apps',
 tools:'Tools',clean:'Clean RAM',clean_s:'Stop cached processes',trim:'Clear caches',trim_s:'Cache of all apps',dex:'Optimize apps',dex_s:'Compile with speed-profile',
+fstrim:'Trim storage',fstrim_s:'Run fstrim in the background',tnotif:'Test notification',tnotif_s:'Post a sample status',
 logbtn:'Load log',logbtn_s:'Last 40 lines',restore:'Restore defaults',log:'Log',lognotloaded:'Not loaded yet.',
-loading:'loading…',by:'by',daemon_run:'running',daemon_stop:'stopped',k_active:'Active profile',none:'None yet',k_gov:'CPU governor',k_ram:'Free RAM',k_swap:'Swappiness',k_temp:'Battery temp',k_batt:'Battery',
+loading:'loading…',working:'Working…',by:'by',daemon_run:'running',daemon_stop:'stopped',k_active:'Active profile',none:'None yet',k_gov:'CPU governor',k_gpu:'GPU governor',k_ram:'Free RAM',k_swap:'Swappiness',k_ds:'Resolution',k_temp:'Battery temp',k_batt:'Battery',
 sysdef:'System default',nomatch:'No matching apps.',added:'Added to game list',removed:'Removed from game list',
 confirm:'Restore all settings to their values from before the module was used?',logempty:'Log is empty.',failed:'Failed',
 notksu:'Open this page from KernelSU, APatch or KsuWebUI.',noresp:'Module is not responding',
+beta:'Beta',standby:'Standby: no extra feature active',profile_w:'profile',downscale:'Downscale',th_chip:'Thermal OFF',
+warn_th:'Thermal protection is disabled. Keep an eye on the temperature, and turn it back on if the phone gets too hot.',
+governors:'CPU & GPU governor',gov_auto:'Auto',gpu_na:'Not available',
+cpu_d:'CPU: Daily',cpu_d_s:'Auto = system default',cpu_g:'CPU: Game',cpu_g_s:'Auto = performance',
+gpu_d:'GPU: Daily',gpu_d_s:'Auto = system default',gpu_g:'GPU: Game',gpu_g_s:'Auto = unchanged',
+res:'Resolution (downscale)',ds_d_s:'Used in the Daily profile',ds_g_s:'Used in the Game profile',
+ds_note:'100% = native resolution. The foreground app may restart briefly when the resolution changes.',
+thermal:'Thermal',th_sw:'Disable thermal throttling',th_sw_s:'Stops thermal services and hides temperature sensors. Stays off after reboot until you switch it back on.',
+th_guard:'Safety cutoff',th_guard_s:'Thermal turns back on at this battery temperature',off:'Off',
+th_confirm:'Disabling thermal protection can overheat the phone and damage the battery. Continue?',
+advanced:'Advanced (manual)',swap_g:'Swappiness: Game',swap_s:'Higher = uses ZRAM more',vfs_g:'Cache pressure: Game',vfs_s:'Lower = keeps file cache longer',
+tcp_g:'TCP algorithm: Game',tcp_s:'Auto = bbr if available',zram_sz:'ZRAM size',zram_now:'Now: {a}',zram_al:'ZRAM algorithm',zram_al_s:'Needs a ZRAM reset; free RAM is checked first',
 t_daily:'Daily profile active (auto-switch off)',t_game:'Game profile active (auto-switch off)',t_saved:'Saved',t_ram:'Available RAM: {a} MB → {b} MB',
-t_trim:'App caches cleared',t_dex:'Optimization started in the background (a few minutes)',t_restore:'Settings restored. Auto-switch turned off.'},
+t_trim:'App caches cleared',t_dex:'Optimization started in the background (a few minutes)',t_restore:'Settings restored. Auto-switch turned off.',
+t_th_off:'Thermal disabled',t_th_on:'Thermal restored',t_fstrim:'Storage trim started in the background',t_notif:'Notification sent'},
 id:{daily:'Daily',daily_s:'Halus & hemat',game:'Game',game_s:'Performa penuh',status:'Status',automation:'Otomatis',
 auto:'Ganti profil otomatis',auto_s:'Profil Game aktif saat aplikasi di daftar dibuka',dnd:'Jangan ganggu saat game',dnd_s:'DND dipulihkan setelah keluar dari game',
+notify:'Notifikasi status',notify_s:'Menampilkan fitur yang aktif dengan logo SmoothPlay',
 refresh:'Refresh rate',rd_s:'Maksimum; minimum 60 Hz',rg_s:'Dikunci ke nilai ini',gamelist:'Daftar game',search:'Cari aplikasi terpasang',
 tools:'Alat',clean:'Bersihkan RAM',clean_s:'Hentikan proses cache',trim:'Bersihkan cache',trim_s:'Cache semua aplikasi',dex:'Optimasi aplikasi',dex_s:'Kompilasi speed-profile',
+fstrim:'Trim penyimpanan',fstrim_s:'Jalankan fstrim di latar belakang',tnotif:'Tes notifikasi',tnotif_s:'Kirim contoh status',
 logbtn:'Muat log',logbtn_s:'40 baris terakhir',restore:'Pulihkan bawaan',log:'Log',lognotloaded:'Belum dimuat.',
-loading:'memuat…',by:'oleh',daemon_run:'berjalan',daemon_stop:'mati',k_active:'Profil aktif',none:'Belum ada',k_gov:'Governor CPU',k_ram:'RAM bebas',k_swap:'Swappiness',k_temp:'Suhu baterai',k_batt:'Baterai',
+loading:'memuat…',working:'Memproses…',by:'oleh',daemon_run:'berjalan',daemon_stop:'mati',k_active:'Profil aktif',none:'Belum ada',k_gov:'Governor CPU',k_gpu:'Governor GPU',k_ram:'RAM bebas',k_swap:'Swappiness',k_ds:'Resolusi',k_temp:'Suhu baterai',k_batt:'Baterai',
 sysdef:'Bawaan sistem',nomatch:'Tidak ada aplikasi yang cocok.',added:'Ditambahkan ke daftar game',removed:'Dihapus dari daftar game',
 confirm:'Pulihkan semua pengaturan ke nilai sebelum modul dipakai?',logempty:'Log kosong.',failed:'Gagal',
 notksu:'Buka halaman ini lewat KernelSU, APatch, atau KsuWebUI.',noresp:'Modul tidak merespons',
+beta:'Beta',standby:'Siaga: tidak ada fitur tambahan aktif',profile_w:'profil',downscale:'Downscale',th_chip:'Thermal MATI',
+warn_th:'Proteksi thermal dimatikan. Pantau suhu, dan nyalakan lagi kalau HP terlalu panas.',
+governors:'Governor CPU & GPU',gov_auto:'Otomatis',gpu_na:'Tidak tersedia',
+cpu_d:'CPU: Daily',cpu_d_s:'Otomatis = bawaan sistem',cpu_g:'CPU: Game',cpu_g_s:'Otomatis = performance',
+gpu_d:'GPU: Daily',gpu_d_s:'Otomatis = bawaan sistem',gpu_g:'GPU: Game',gpu_g_s:'Otomatis = tidak diubah',
+res:'Resolusi (downscale)',ds_d_s:'Dipakai di profil Daily',ds_g_s:'Dipakai di profil Game',
+ds_note:'100% = resolusi asli. Aplikasi di layar bisa restart sebentar saat resolusi berubah.',
+thermal:'Thermal',th_sw:'Matikan thermal throttling',th_sw_s:'Menghentikan layanan thermal dan menyembunyikan sensor suhu. Tetap mati setelah reboot sampai kamu nyalakan lagi.',
+th_guard:'Batas pengaman',th_guard_s:'Thermal menyala lagi saat suhu baterai mencapai nilai ini',off:'Mati',
+th_confirm:'Mematikan proteksi thermal bisa membuat HP terlalu panas dan merusak baterai. Lanjutkan?',
+advanced:'Lanjutan (manual)',swap_g:'Swappiness: Game',swap_s:'Lebih tinggi = lebih banyak pakai ZRAM',vfs_g:'Cache pressure: Game',vfs_s:'Lebih rendah = cache file bertahan lebih lama',
+tcp_g:'Algoritma TCP: Game',tcp_s:'Otomatis = bbr jika ada',zram_sz:'Ukuran ZRAM',zram_now:'Sekarang: {a}',zram_al:'Algoritma ZRAM',zram_al_s:'Perlu reset ZRAM; RAM bebas diperiksa dulu',
 t_daily:'Profil Daily aktif (auto-switch mati)',t_game:'Profil Game aktif (auto-switch mati)',t_saved:'Tersimpan',t_ram:'RAM tersedia: {a} MB → {b} MB',
-t_trim:'Cache aplikasi dibersihkan',t_dex:'Optimasi berjalan di latar belakang (beberapa menit)',t_restore:'Pengaturan dipulihkan. Auto-switch dimatikan.'}
+t_trim:'Cache aplikasi dibersihkan',t_dex:'Optimasi berjalan di latar belakang (beberapa menit)',t_restore:'Pengaturan dipulihkan. Auto-switch dimatikan.',
+t_th_off:'Thermal dimatikan',t_th_on:'Thermal dipulihkan',t_fstrim:'Trim penyimpanan berjalan di latar belakang',t_notif:'Notifikasi terkirim'}
 };
 const $=s=>document.querySelector(s);
 const q1=a=>"'"+String(a).replace(/'/g,"'\\''")+"'";
@@ -147,10 +231,20 @@ async function act(ok,...a){
   await load();return r;
 }
 
-function opts(sel,val){
-  sel.innerHTML='';
-  [['',t('sysdef')],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']].forEach(([v,x])=>sel.add(new Option(x,v)));
-  sel.value=val||'';
+// Rebuilds a <select> only when its options change, and never while it is being used.
+function fillSel(sel,items,val){
+  const k=JSON.stringify(items);
+  if(sel.dataset.k!==k){sel.innerHTML='';items.forEach(([v,x])=>sel.add(new Option(x,v)));sel.dataset.k=k}
+  if(document.activeElement!==sel)sel.value=val??'';
+}
+function numItems(list,val,unit){
+  const a=[...new Set([...list,...(val?[+val]:[])])].sort((x,y)=>x-y);
+  return a.map(n=>[String(n),n+(unit||'')]);
+}
+function govItems(list,val,auto){
+  const g=list.split(' ').filter(Boolean);
+  if(val&&!g.includes(val))g.push(val);
+  return [['',auto],...g.map(x=>[x,x])];
 }
 
 async function load(){
@@ -159,16 +253,69 @@ async function load(){
   S=Object.fromEntries(r.out.split('\n').map(l=>{const i=l.indexOf('=');return[l.slice(0,i),l.slice(i+1)]}));
   render();
 }
+
+function chips(s){
+  const a=s.active,c=[];
+  if(a==='game'||a==='daily')c.push(`${t(a)} ${t('profile_w')}`);
+  const r=a==='game'?s.refresh_game:a==='daily'?s.refresh_daily:'';
+  if(r)c.push(r+' Hz');
+  const cg=a==='game'?s.cpu_gov_game:a==='daily'?s.cpu_gov_daily:'';
+  const gg=a==='game'?s.gpu_gov_game:a==='daily'?s.gpu_gov_daily:'';
+  if(cg)c.push('CPU '+cg);
+  if(gg)c.push('GPU '+gg);
+  if(a==='game'&&s.dnd==='1')c.push('DND');
+  if(+s.ds_now<100)c.push(`${t('downscale')} ${s.ds_now}%`);
+  if(s.thermal_off==='1')c.push(t('th_chip'));
+  if(s.zram_cfg_mb)c.push('ZRAM '+s.zram_cfg_mb+' MB');
+  return c;
+}
+
 function render(){
   if(!S){if(!$('#meta').textContent)$('#meta').textContent=t('loading');return}
-  const s=S;
+  const s=S,cur=document.activeElement;
   document.body.classList.toggle('game',s.active==='game');
   $('#meta').textContent=`${s.version} ${t('by')} @arqzey · daemon ${s.daemon==='1'?t('daemon_run'):t('daemon_stop')}`;
   document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===s.active));
-  $('#auto').checked=s.auto==='1';$('#dnd').checked=s.dnd==='1';
-  opts($('#rd'),s.refresh_daily);opts($('#rg'),s.refresh_game);
+
+  const ch=chips(s),box=$('#chips');box.innerHTML='';
+  if(ch.length)ch.forEach(x=>{const i=document.createElement('i');i.textContent=x;box.append(i)});
+  else{const m=document.createElement('span');m.textContent=t('standby');box.append(m)}
+  $('#warn').hidden=!(s.thermal_cfg==='1'||s.thermal_off==='1');
+
+  $('#auto').checked=s.auto==='1';$('#dnd').checked=s.dnd==='1';$('#notify').checked=s.notify==='1';
+  const hz=[['',t('sysdef')],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']];
+  fillSel($('#rd'),hz,s.refresh_daily);fillSel($('#rg'),hz,s.refresh_game);
+
+  const A=t('gov_auto');
+  fillSel($('#cd'),govItems(s.cpu_govs,s.cpu_gov_daily,A),s.cpu_gov_daily);
+  fillSel($('#cg'),govItems(s.cpu_govs,s.cpu_gov_game,A),s.cpu_gov_game);
+  const hasGpu=!!s.gpu_govs.trim();
+  [['gd',s.gpu_gov_daily],['gg',s.gpu_gov_game]].forEach(([id,v])=>{
+    const el=$('#'+id);el.disabled=!hasGpu;
+    fillSel(el,hasGpu?govItems(s.gpu_govs,v,A):[['',t('gpu_na')]],v);
+  });
+
+  [['dsd',s.ds_daily],['dsg',s.ds_game]].forEach(([id,v])=>{
+    const el=$('#'+id);if(cur!==el)el.value=v;$('#'+id+'_v').textContent=el.value+'%';
+  });
+
+  $('#th').checked=s.thermal_cfg==='1'||s.thermal_off==='1';
+  fillSel($('#thg'),[['0',t('off')],['45','45 °C'],['48','48 °C'],['50','50 °C'],['55','55 °C']].concat(
+    ['0','45','48','50','55'].includes(s.thermal_guard)?[]:[[s.thermal_guard,s.thermal_guard+' °C']]),s.thermal_guard);
+
+  fillSel($('#swp'),numItems([0,10,20,30,40,60,80,100],s.swap_game),s.swap_game);
+  fillSel($('#vfs'),numItems([25,50,75,100,150,200],s.vfs_game),s.vfs_game);
+  fillSel($('#tcp'),govItems(s.tcp_avail,s.tcp_game,A),s.tcp_game);
+  const z=s.zram==='1';$('#zr1').hidden=!z;$('#zr2').hidden=!z;
+  if(z){
+    $('#zram_now').textContent=t('zram_now').replace('{a}',`${s.zram_mb} MB ${s.zram_algo||''}`.trim());
+    fillSel($('#zsz'),[['',t('sysdef')],...numItems([1024,2048,3072,4096,6144,8192],s.zram_cfg_mb).map(([v,x])=>[v,x+' MB'])],s.zram_cfg_mb);
+    fillSel($('#zal'),govItems(s.zram_algos,s.zram_cfg_algo,t('sysdef')),s.zram_cfg_algo);
+  }
+
   const cells=[[t('k_active'),s.active==='none'?t('none'):t(s.active)],[t('k_gov'),s.governor||'-'],
-    [t('k_ram'),`${s.ram_free} / ${s.ram_total} MB`],[t('k_swap'),s.swappiness||'-'],
+    [t('k_gpu'),s.gpu_governor||'-'],[t('k_ram'),`${s.ram_free} / ${s.ram_total} MB`],
+    [t('k_swap'),s.swappiness||'-'],[t('k_ds'),s.ds_now+'%'],
     [t('k_temp'),s.temp?s.temp+' °C':'-'],[t('k_batt'),s.battery?s.battery+'%':'-']];
   $('#stat').innerHTML=cells.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join('');
 }
@@ -197,15 +344,32 @@ function renderList(){
   });
 }
 
+const bindSel=(id,key,slow)=>$('#'+id).onchange=e=>{if(slow)toast(t('working'));act('t_saved','set',key,e.target.value)};
 document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>act('t_'+b.dataset.p,'profile',b.dataset.p));
 $('#auto').onchange=e=>act('t_saved','set','AUTO_SWITCH',e.target.checked?1:0);
 $('#dnd').onchange=e=>act('t_saved','set','GAME_DND',e.target.checked?1:0);
-$('#rd').onchange=e=>act('t_saved','set','REFRESH_DAILY',e.target.value);
-$('#rg').onchange=e=>act('t_saved','set','REFRESH_GAME',e.target.value);
+$('#notify').onchange=e=>act('t_saved','set','NOTIFY',e.target.checked?1:0);
+bindSel('rd','REFRESH_DAILY');bindSel('rg','REFRESH_GAME');
+bindSel('cd','CPU_GOV_DAILY');bindSel('cg','CPU_GOV_GAME');bindSel('gd','GPU_GOV_DAILY');bindSel('gg','GPU_GOV_GAME');
+bindSel('thg','THERMAL_GUARD');bindSel('swp','SWAP_GAME');bindSel('vfs','VFS_GAME');bindSel('tcp','TCP_GAME');
+bindSel('zsz','ZRAM_MB',true);bindSel('zal','ZRAM_ALGO',true);
+[['dsd','DOWNSCALE_DAILY'],['dsg','DOWNSCALE_GAME']].forEach(([id,key])=>{
+  const el=$('#'+id);
+  el.oninput=()=>{$('#'+id+'_v').textContent=el.value+'%'};
+  el.onchange=()=>act('t_saved','set',key,el.value);
+});
+$('#th').onchange=e=>{
+  if(e.target.checked){
+    if(!confirm(t('th_confirm'))){e.target.checked=false;return}
+    act('t_th_off','thermal','disable');
+  }else act('t_th_on','thermal','enable');
+};
 $('#q').oninput=renderList;
 $('#clean').onclick=()=>act(o=>{const m=o.match(/(\d+) MB -> (\d+) MB/);return m?t('t_ram').replace('{a}',m[1]).replace('{b}',m[2]):t('t_saved')},'clean');
 $('#trim').onclick=()=>act('t_trim','trimcache');
 $('#dex').onclick=()=>act('t_dex','dexopt');
+$('#fstrim').onclick=()=>act('t_fstrim','fstrim');
+$('#tnotif').onclick=()=>act('t_notif','notify');
 $('#restore').onclick=()=>{if(confirm(t('confirm')))act('t_restore','restore')};
 $('#logbtn').onclick=async()=>{const r=await sp('log');const p=$('#log');p.dataset.has='1';p.textContent=r.out||t('logempty')};
 $('#lang').onchange=e=>{lang=e.target.value;try{localStorage.setItem('sp_lang',lang)}catch(x){}applyLang()};

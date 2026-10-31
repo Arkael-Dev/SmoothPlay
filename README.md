@@ -12,7 +12,12 @@ Author: [@arqzey](https://github.com/Arkael-Dev)
 - **Refresh rate** configured separately for Daily and Game (via `min/peak_refresh_rate`).
 - **Game list** picked from your installed apps, with search.
 - **WebUI in English and Indonesian**: switch language from the header (saved automatically).
-- **Tools**: clean RAM (`am kill-all`), clear caches (`pm trim-caches`), optimize apps (`cmd package compile -m speed-profile`), and a log viewer.
+- **CPU & GPU governor**: pick any available governor per profile (Auto = default behaviour).
+- **Downscale 100% to 30%**: lowers resolution (`wm size` + `wm density`) per profile; restored on Daily/100% or Restore defaults.
+- **Thermal switch**: stops thermal services and hides sensor files; tap again to bring everything back. Optional battery-temperature safety cutoff.
+- **Status notification** with the SmoothPlay logo listing the active features (`cmd notification`).
+- **Manual advanced options**: swappiness, cache pressure, TCP algorithm, ZRAM size and algorithm.
+- **Tools**: clean RAM (`am kill-all`), clear caches (`pm trim-caches`), optimize apps (`cmd package compile -m speed-profile`), trim storage (`fstrim`), test notification, and a log viewer.
 - **Restore defaults**: original values are saved before the first change.
 
 ## Install
@@ -21,6 +26,8 @@ Author: [@arqzey](https://github.com/Arkael-Dev)
 3. Open the WebUI from your manager. On Magisk, use the KsuWebUI app.
 
 ## Notes
+- Disabling thermal protection can overheat the phone. Use the safety cutoff.
+- Downscale may restart the foreground app once.
 - Some devices (e.g. Samsung) control refresh rate through other settings keys, so the refresh rate option may have no effect.
 - Tap **Restore defaults** before uninstalling so animation and refresh rate settings return to normal.
 - CLI: `su -c sh /data/adb/modules/smoothplay/bin/smoothplay status`

@@ -1,6 +1,7 @@
 #!/system/bin/sh
 # SmoothPlay - @arqzey
-DATA=/data/adb/smoothplay
+DATA=${SP_DATA:-/data/adb/smoothplay}
+SYS=${SP_SYS:-}
 CONF=$DATA/config
 GAMES=$DATA/games.list
 ORIG=$DATA/original.state
@@ -8,8 +9,18 @@ LOG=$DATA/smoothplay.log
 PIDF=$DATA/daemon.pid
 ACTIVE=$DATA/active
 ZEN=$DATA/zen.prev
+DISP=$DATA/display.prev
+DSP=$DATA/downscale.pct
+TH_SVC=$DATA/thermal.svcs
+TH_MODE=$DATA/thermal.modes
+NLAST=$DATA/notify.last
 MODDIR=${0%/*}/..
 SDK=$(getprop ro.build.version.sdk)
+BOOTID=$(cat "$SYS/proc/sys/kernel/random/boot_id" 2>/dev/null)
+LOGO_T=/data/local/tmp/smoothplay_logo.png
+ICON_T=/data/local/tmp/smoothplay_icon.png
+ZD=$SYS/sys/block/zram0
+ZDEV=/dev/block/zram0
 
 mkdir -p "$DATA"; touch "$GAMES"
 if [ ! -f "$CONF" ]; then
@@ -22,7 +33,11 @@ REFRESH_GAME=""
 POLL="4"
 EOC
 fi
-load() { . "$CONF"; }
+load() {
+  . "$CONF"
+  : "${NOTIFY:=1}" "${DOWNSCALE_DAILY:=100}" "${DOWNSCALE_GAME:=100}" "${THERMAL_GUARD:=50}"
+  : "${SWAP_GAME:=40}" "${VFS_GAME:=50}" "${THERMAL_OFF:=0}"
+}
 load
 
 log() {
@@ -34,6 +49,7 @@ log() {
 
 isnum()  { case "$1" in ""|*[!0-9]*) return 1;; esac; return 0; }
 okpkg()  { case "$1" in ""|*[!A-Za-z0-9_.]*) return 1;; esac; return 0; }
+inlist() { v=$1; shift; for x in "$@"; do [ "$x" = "$v" ] && return 0; done; return 1; }
 w()      { [ -w "$1" ] && echo "$2" > "$1" 2>/dev/null; }
 sput()   { settings put "$@" </dev/null; }
 sget()   { settings get "$@" </dev/null; }
@@ -47,25 +63,53 @@ setconf() {
 meminfo() {
   while read -r k v u; do
     [ "$k" = "$1:" ] && echo $((v / 1024)) && break
-  done < /proc/meminfo
+  done < "$SYS/proc/meminfo"
 }
+
+# ---------- hardware lookups ----------
+cpu_avail() {
+  for f in "$SYS"/sys/devices/system/cpu/cpufreq/policy*/scaling_available_governors; do
+    [ -r "$f" ] && { tr -d '[]' < "$f"; return 0; }
+  done
+}
+gpu_gov_path() {
+  for g in "$SYS"/sys/class/kgsl/kgsl-3d0/devfreq/governor \
+           "$SYS"/sys/class/devfreq/*kgsl*/governor \
+           "$SYS"/sys/class/devfreq/*gpu*/governor \
+           "$SYS"/sys/class/devfreq/*mali*/governor; do
+    [ -f "$g" ] && { echo "$g"; return 0; }
+  done
+}
+gpu_avail() {
+  g=$(gpu_gov_path); [ -n "$g" ] && tr -d '[]' < "${g%/*}/available_governors" 2>/dev/null
+}
+tcp_avail() { cat "$SYS/proc/sys/net/ipv4/tcp_available_congestion_control" 2>/dev/null; }
+zram_algos() { tr -d '[]' < "$ZD/comp_algorithm" 2>/dev/null; }
+zram_algo_cur() { sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$ZD/comp_algorithm" 2>/dev/null | head -n 1; }
+zram_size_cur() { cat "$ZD/disksize" 2>/dev/null; }
+batt_temp() { [ -r "$SYS/sys/class/power_supply/battery/temp" ] && echo $(( $(cat "$SYS/sys/class/power_supply/battery/temp") / 10 )); }
 
 # ---------- baseline ----------
 backup() {
-  [ -f "$ORIG" ] && return 0
-  : > "$ORIG"
-  for k in window_animation_scale transition_animation_scale animator_duration_scale; do
-    echo "S|global|$k|$(sget global $k)" >> "$ORIG"
-  done
-  for k in min_refresh_rate peak_refresh_rate; do
-    echo "S|system|$k|$(sget system $k)" >> "$ORIG"
-  done
-  for f in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor \
-           /proc/sys/vm/swappiness /proc/sys/vm/vfs_cache_pressure \
-           /proc/sys/net/ipv4/tcp_congestion_control; do
-    [ -r "$f" ] && echo "F|$f|$(cat "$f")" >> "$ORIG"
-  done
-  log "baseline saved"
+  if [ ! -f "$ORIG" ]; then
+    : > "$ORIG"
+    for k in window_animation_scale transition_animation_scale animator_duration_scale; do
+      echo "S|global|$k|$(sget global $k)" >> "$ORIG"
+    done
+    for k in min_refresh_rate peak_refresh_rate; do
+      echo "S|system|$k|$(sget system $k)" >> "$ORIG"
+    done
+    for f in "$SYS"/sys/devices/system/cpu/cpufreq/policy*/scaling_governor \
+             "$SYS/proc/sys/vm/swappiness" "$SYS/proc/sys/vm/vfs_cache_pressure" \
+             "$SYS/proc/sys/net/ipv4/tcp_congestion_control"; do
+      [ -r "$f" ] && echo "F|$f|$(cat "$f")" >> "$ORIG"
+    done
+    log "baseline saved"
+  fi
+  # entries added in later versions (also for baselines saved by older ones)
+  g=$(gpu_gov_path)
+  if [ -n "$g" ] && ! grep -qF "F|$g|" "$ORIG"; then echo "F|$g|$(cat "$g")" >> "$ORIG"; fi
+  if [ -d "$ZD" ] && ! grep -q '^Z|' "$ORIG"; then echo "Z|$(zram_size_cur)|$(zram_algo_cur)" >> "$ORIG"; fi
 }
 
 restore_sys() {
@@ -81,21 +125,33 @@ restore_S() {
 }
 
 restore_all() {
+  thermal_enable; setconf THERMAL_OFF 0
+  ds_reset
   [ -f "$ORIG" ] || { echo "No baseline saved, nothing to restore"; return 0; }
   restore_sys
   grep '^S|' "$ORIG" | while IFS='|' read -r t ns k v; do restore_S "$ns" "$k"; done
   dnd_restore
+  setconf ZRAM_MB ""; setconf ZRAM_ALGO ""; load
+  zram_sync >/dev/null 2>&1
   rm -f "$ACTIVE"
   setconf AUTO_SWITCH 0
   log "restored to defaults"
+  notify_state
   echo "Settings restored. Auto-switch turned off."
 }
 
 # ---------- tweaks ----------
 set_gov() {
-  for d in /sys/devices/system/cpu/cpufreq/policy*; do
-    grep -qw "$1" "$d/scaling_available_governors" 2>/dev/null && w "$d/scaling_governor" "$1"
+  for d in "$SYS"/sys/devices/system/cpu/cpufreq/policy*; do
+    [ -f "$d/scaling_available_governors" ] || continue
+    inlist "$1" $(tr -d '[]' < "$d/scaling_available_governors") && w "$d/scaling_governor" "$1"
   done
+  return 0
+}
+set_gpu_gov() {
+  g=$(gpu_gov_path); [ -n "$g" ] || return 0
+  inlist "$1" $(gpu_avail) && w "$g" "$1"
+  return 0
 }
 anim()        { for k in window_animation_scale transition_animation_scale animator_duration_scale; do sput global $k "$1"; done; }
 refresh_set() { sput system min_refresh_rate "$1"; sput system peak_refresh_rate "$2"; }
@@ -106,6 +162,123 @@ dnd_restore() {
   sput global zen_mode "$z"; rm -f "$ZEN"
 }
 
+# --- resolution downscale (wm size + wm density, scaled together so the UI keeps its layout)
+wm_get() { wm "$1" </dev/null 2>/dev/null | sed -n "s/^$2: *//p" | head -n 1; }
+
+ds_reset() {
+  [ -f "$DISP" ] || return 0
+  os=$(sed -n 's/^size=//p' "$DISP"); od=$(sed -n 's/^density=//p' "$DISP")
+  case "$os" in *[!0-9x]*) os="";; esac
+  case "$od" in *[!0-9]*) od="";; esac
+  if [ -n "$os" ]; then wm size "$os" </dev/null >/dev/null 2>&1; else wm size reset </dev/null >/dev/null 2>&1; fi
+  if [ -n "$od" ]; then wm density "$od" </dev/null >/dev/null 2>&1; else wm density reset </dev/null >/dev/null 2>&1; fi
+  rm -f "$DISP" "$DSP"
+  log "downscale reset to 100%"
+}
+
+ds_apply() {
+  p=${1:-100}
+  isnum "$p" || return 1
+  [ "$p" -ge 100 ] && { ds_reset; return 0; }
+  [ "$p" -lt 30 ] && p=30
+  ps=$(wm_get size "Physical size"); pd=$(wm_get density "Physical density")
+  pw=${ps%x*}; ph=${ps#*x}
+  if ! { isnum "$pw" && isnum "$ph" && isnum "$pd"; }; then log "downscale: cannot read display info"; return 1; fi
+  nw=$(( (pw * p / 100 + 1) / 2 * 2 )); nh=$(( (ph * p / 100 + 1) / 2 * 2 ))
+  nd=$(( pd * p / 100 )); [ "$nd" -lt 72 ] && nd=72
+  if [ ! -f "$DISP" ]; then
+    printf 'size=%s\ndensity=%s\n' "$(wm_get size 'Override size')" "$(wm_get density 'Override density')" > "$DISP"
+  fi
+  [ "$(wm_get size 'Override size')" = "${nw}x${nh}" ] || wm size "${nw}x${nh}" </dev/null >/dev/null 2>&1
+  [ "$(wm_get density 'Override density')" = "$nd" ] || wm density "$nd" </dev/null >/dev/null 2>&1
+  echo "$p" > "$DSP"
+  log "downscale ${p}% (${nw}x${nh} @ ${nd}dpi)"
+  return 0
+}
+
+# --- thermal: stop thermal services and hide sensor readings; fully reversible
+th_active() { [ -f "$TH_SVC" ] && [ "$(sed -n 1p "$TH_SVC")" = "$BOOTID" ]; }
+
+thermal_disable() {
+  th_active && return 0
+  rm -f "$TH_SVC" "$TH_MODE"
+  echo "$BOOTID" > "$TH_SVC"; : > "$TH_MODE"
+  for s in $(getprop 2>/dev/null | sed -n 's/^\[init\.svc\.\([^]]*thermal[^]]*\)\]: \[running\]$/\1/p'); do
+    case "$s" in ""|*[!A-Za-z0-9_.-]*) continue;; esac
+    echo "$s" >> "$TH_SVC"
+    stop "$s" </dev/null >/dev/null 2>&1
+    command -v resetprop >/dev/null 2>&1 && resetprop -n "init.svc.$s" stopped
+  done
+  find "$SYS/sys/devices/virtual/thermal" -name temp -type f 2>/dev/null | while IFS= read -r f; do
+    m=$(stat -c %a "$f" 2>/dev/null); [ -n "$m" ] || continue
+    echo "$m|$f" >> "$TH_MODE"; chmod 000 "$f"
+  done
+  ns=$(( $(grep -c . "$TH_SVC") - 1 )); nt=$(grep -c . "$TH_MODE")
+  log "thermal disabled: $ns service(s) stopped, $nt sensor file(s) hidden"
+  if [ "$ns" -le 0 ] && [ "$nt" -le 0 ]; then rm -f "$TH_SVC" "$TH_MODE"; return 1; fi
+  return 0
+}
+
+thermal_enable() {
+  [ -f "$TH_SVC" ] || return 0
+  if [ "$(sed -n 1p "$TH_SVC")" = "$BOOTID" ] && [ -f "$TH_MODE" ]; then
+    while IFS='|' read -r m f; do
+      case "$m" in ""|*[!0-7]*) continue;; esac
+      case "$m" in 0|00|000) m=444;; esac
+      [ -e "$f" ] && chmod "$m" "$f"
+    done < "$TH_MODE"
+  fi
+  sed 1d "$TH_SVC" | while read -r s; do
+    case "$s" in ""|*[!A-Za-z0-9_.-]*) continue;; esac
+    start "$s" </dev/null >/dev/null 2>&1
+  done
+  rm -f "$TH_SVC" "$TH_MODE"
+  log "thermal restored"
+  return 0
+}
+
+thermal_guard() {
+  [ "$THERMAL_OFF" = "1" ] && [ "$THERMAL_GUARD" -gt 0 ] || return 0
+  bt=$(batt_temp); isnum "$bt" || return 0
+  if [ "$bt" -ge "$THERMAL_GUARD" ]; then
+    thermal_enable; setconf THERMAL_OFF 0; load
+    log "thermal guard: battery ${bt}C >= ${THERMAL_GUARD}C, thermal restored"
+    t="Thermal protection restored: battery ${bt}C reached the ${THERMAL_GUARD}C limit"
+    notify "$t" && echo "$t" > "$NLAST"
+  fi
+}
+
+# --- ZRAM
+zram_apply() {  # bytes algo
+  [ -d "$ZD" ] || { echo "ZRAM is not available on this kernel"; return 1; }
+  nb=$1; al=$2; ob=$(zram_size_cur)
+  isnum "$nb" || return 1
+  [ "$nb" = "$ob" ] && { [ -z "$al" ] || [ "$al" = "$(zram_algo_cur)" ]; } && return 0
+  avail=$(meminfo MemAvailable); used=$(( $(meminfo SwapTotal) - $(meminfo SwapFree) ))
+  if [ $((used + 300)) -gt "$avail" ]; then
+    echo "Not enough free RAM (${avail} MB) to resize ZRAM safely. Clean RAM first."; return 1
+  fi
+  swapoff "$ZDEV" >/dev/null 2>&1 || { echo "Could not turn off ZRAM swap"; return 1; }
+  echo 1 > "$ZD/reset"
+  [ -n "$al" ] && echo "$al" > "$ZD/comp_algorithm" 2>/dev/null
+  echo "$nb" > "$ZD/disksize" 2>/dev/null || echo "$ob" > "$ZD/disksize"
+  mkswap "$ZDEV" >/dev/null 2>&1; swapon "$ZDEV" >/dev/null 2>&1
+  log "zram: $(( $(zram_size_cur) / 1048576 )) MB, $(zram_algo_cur)"
+  return 0
+}
+
+zram_sync() {
+  [ -d "$ZD" ] || return 0
+  backup
+  bl=$(grep '^Z|' "$ORIG" | head -n 1)
+  bb=$(echo "$bl" | cut -d'|' -f2); ba=$(echo "$bl" | cut -d'|' -f3)
+  if [ -n "$ZRAM_MB" ]; then nb=$((ZRAM_MB * 1048576)); else nb=$bb; fi
+  al=${ZRAM_ALGO:-$ba}
+  [ -n "$nb" ] || return 0
+  zram_apply "$nb" "$al"
+}
+
+# ---------- profiles ----------
 p_daily() {
   restore_sys
   anim 0.7
@@ -115,17 +288,26 @@ p_daily() {
     for k in min_refresh_rate peak_refresh_rate; do restore_S system $k; done
   fi
   dnd_restore
+  [ -n "$CPU_GOV_DAILY" ] && set_gov "$CPU_GOV_DAILY"
+  [ -n "$GPU_GOV_DAILY" ] && set_gpu_gov "$GPU_GOV_DAILY"
+  ds_apply "$DOWNSCALE_DAILY"
 }
 
 p_game() {
-  set_gov performance
-  w /proc/sys/vm/swappiness 40
-  w /proc/sys/vm/vfs_cache_pressure 50
-  grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control 2>/dev/null \
-    && w /proc/sys/net/ipv4/tcp_congestion_control bbr
+  restore_sys
+  set_gov "${CPU_GOV_GAME:-performance}"
+  [ -n "$GPU_GOV_GAME" ] && set_gpu_gov "$GPU_GOV_GAME"
+  w "$SYS/proc/sys/vm/swappiness" "$SWAP_GAME"
+  w "$SYS/proc/sys/vm/vfs_cache_pressure" "$VFS_GAME"
+  if [ -n "$TCP_GAME" ]; then
+    inlist "$TCP_GAME" $(tcp_avail) && w "$SYS/proc/sys/net/ipv4/tcp_congestion_control" "$TCP_GAME"
+  else
+    inlist bbr $(tcp_avail) && w "$SYS/proc/sys/net/ipv4/tcp_congestion_control" bbr
+  fi
   anim 0.5
   [ -n "$REFRESH_GAME" ] && refresh_set "$REFRESH_GAME" "$REFRESH_GAME"
   [ "$GAME_DND" = "1" ] && dnd_on
+  ds_apply "$DOWNSCALE_GAME"
 }
 
 apply() {
@@ -137,9 +319,55 @@ apply() {
   esac
   echo "$1" > "$ACTIVE"
   log "active profile: $1"
+  notify_state
+  return 0
 }
 
 gmode() { [ "${SDK:-0}" -ge 31 ] && cmd game mode "$1" "$2" >/dev/null 2>&1; return 0; }
+
+# ---------- status notification (small logo, replaced in place) ----------
+_add() { out="${out:+$out | }$1"; }
+
+state_text() {
+  load; out=""
+  a=$(cat "$ACTIVE" 2>/dev/null)
+  case "$a" in game) _add "Game profile";; daily) _add "Daily profile";; esac
+  r=""; cg=""; gg=""
+  [ "$a" = game ] && { r=$REFRESH_GAME; cg=$CPU_GOV_GAME; gg=$GPU_GOV_GAME; }
+  [ "$a" = daily ] && { r=$REFRESH_DAILY; cg=$CPU_GOV_DAILY; gg=$GPU_GOV_DAILY; }
+  [ -n "$r" ] && _add "${r} Hz"
+  [ -n "$cg" ] && _add "CPU $cg"
+  [ -n "$gg" ] && _add "GPU $gg"
+  [ "$a" = game ] && [ "$GAME_DND" = "1" ] && _add "DND"
+  p=$(cat "$DSP" 2>/dev/null)
+  isnum "$p" && [ "$p" -lt 100 ] && _add "Downscale ${p}%"
+  th_active && _add "Thermal OFF"
+  [ -n "$ZRAM_MB" ] && _add "ZRAM ${ZRAM_MB} MB"
+  echo "${out:-Standby}"
+}
+
+notify() {  # text -> posts/replaces one notification using the module logo
+  mkdir -p /data/local/tmp 2>/dev/null
+  cp -f "$MODDIR/webroot/logo.png" "$LOGO_T" 2>/dev/null; cp -f "$MODDIR/webroot/icon.png" "$ICON_T" 2>/dev/null
+  chmod 644 "$LOGO_T" "$ICON_T" 2>/dev/null
+  TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 10"
+  n1="cmd notification post -S bigtext -t 'SmoothPlay' -i file://$ICON_T -I file://$LOGO_T 'SmoothPlay' '$1'"
+  n2="cmd notification post -t 'SmoothPlay' 'SmoothPlay' '$1'"
+  for c in "$n1" "$n2"; do
+    $TO su -lp 2000 -c "$c" >/dev/null 2>&1 </dev/null && return 0
+    $TO sh -c "$c" >/dev/null 2>&1 </dev/null && return 0
+  done
+  return 1
+}
+
+notify_state() {  # [force]
+  load
+  [ "$NOTIFY" = "1" ] || [ "$1" = "force" ] || return 0
+  t=$(state_text)
+  [ "$1" != "force" ] && [ "$(cat "$NLAST" 2>/dev/null)" = "$t" ] && return 0
+  notify "$t" && echo "$t" > "$NLAST"
+  return 0
+}
 
 # ---------- foreground app detection ----------
 fg_pkg() {
@@ -155,10 +383,16 @@ daemon() {
   echo $$ > "$PIDF"
   log "daemon started (pid $$)"
   load
+  rm -f "$NLAST"
   [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
+  ( sleep 15; load
+    [ "$THERMAL_OFF" = "1" ] && thermal_disable
+    zram_sync
+    notify_state ) >/dev/null 2>&1 </dev/null &
   key=""; lastgame=""
   while :; do
     load
+    thermal_guard
     if [ "$AUTO_SWITCH" = "1" ]; then
       pkg=$(fg_pkg)
       case "$pkg" in
@@ -195,13 +429,43 @@ status() {
   echo "refresh_game=$REFRESH_GAME"
   echo "daemon=$(daemon_alive && echo 1 || echo 0)"
   echo "games=$(grep -c . "$GAMES")"
-  [ -r /sys/devices/system/cpu/cpufreq/policy0/scaling_governor ] && \
-    echo "governor=$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor)"
-  echo "swappiness=$(cat /proc/sys/vm/swappiness 2>/dev/null)"
+  [ -r "$SYS/sys/devices/system/cpu/cpufreq/policy0/scaling_governor" ] && \
+    echo "governor=$(cat "$SYS/sys/devices/system/cpu/cpufreq/policy0/scaling_governor")"
+  g=$(gpu_gov_path); [ -n "$g" ] && echo "gpu_governor=$(cat "$g")"
+  echo "cpu_govs=$(cpu_avail | tr -s ' \n' ' ')"
+  echo "gpu_govs=$(gpu_avail | tr -s ' \n' ' ')"
+  echo "cpu_gov_daily=$CPU_GOV_DAILY"
+  echo "cpu_gov_game=$CPU_GOV_GAME"
+  echo "gpu_gov_daily=$GPU_GOV_DAILY"
+  echo "gpu_gov_game=$GPU_GOV_GAME"
+  echo "ds_daily=$DOWNSCALE_DAILY"
+  echo "ds_game=$DOWNSCALE_GAME"
+  echo "ds_now=$(cat "$DSP" 2>/dev/null || echo 100)"
+  echo "thermal_off=$(th_active && echo 1 || echo 0)"
+  echo "thermal_cfg=$THERMAL_OFF"
+  echo "thermal_guard=$THERMAL_GUARD"
+  echo "notify=$NOTIFY"
+  echo "swap_game=$SWAP_GAME"
+  echo "vfs_game=$VFS_GAME"
+  echo "tcp_game=$TCP_GAME"
+  echo "tcp_now=$(cat "$SYS/proc/sys/net/ipv4/tcp_congestion_control" 2>/dev/null)"
+  echo "tcp_avail=$(tcp_avail)"
+  if [ -d "$ZD" ]; then
+    echo "zram=1"
+    echo "zram_mb=$(( $(zram_size_cur) / 1048576 ))"
+    echo "zram_algo=$(zram_algo_cur)"
+    echo "zram_algos=$(zram_algos | tr -s ' \n' ' ')"
+    echo "zram_cfg_mb=$ZRAM_MB"
+    echo "zram_cfg_algo=$ZRAM_ALGO"
+  else
+    echo "zram=0"
+  fi
+  echo "summary=$(state_text)"
+  echo "swappiness=$(cat "$SYS/proc/sys/vm/swappiness" 2>/dev/null)"
   echo "ram_free=$(meminfo MemAvailable)"
   echo "ram_total=$(meminfo MemTotal)"
-  [ -r /sys/class/power_supply/battery/temp ] && echo "temp=$(( $(cat /sys/class/power_supply/battery/temp) / 10 ))"
-  [ -r /sys/class/power_supply/battery/capacity ] && echo "battery=$(cat /sys/class/power_supply/battery/capacity)"
+  bt=$(batt_temp); [ -n "$bt" ] && echo "temp=$bt"
+  [ -r "$SYS/sys/class/power_supply/battery/capacity" ] && echo "battery=$(cat "$SYS/sys/class/power_supply/battery/capacity")"
   echo "sdk=$SDK"
 }
 
@@ -214,6 +478,8 @@ clean() {
   echo "Available RAM: ${b} MB -> ${a} MB"
 }
 
+bad() { echo "$1"; exit 1; }
+
 case "$1" in
   status)  status;;
   profile)
@@ -222,15 +488,46 @@ case "$1" in
       *) echo "invalid profile"; exit 1;;
     esac;;
   set)
-    case "$2" in
-      AUTO_SWITCH|GAME_DND) case "$3" in 0|1) ;; *) echo "invalid value"; exit 1;; esac;;
-      REFRESH_DAILY|REFRESH_GAME) [ -z "$3" ] || isnum "$3" || { echo "invalid value"; exit 1; };;
-      POLL) isnum "$3" && [ "$3" -ge 2 ] && [ "$3" -le 30 ] || { echo "POLL 2-30"; exit 1; };;
-      *) echo "unknown key"; exit 1;;
+    k=$2; v=$3
+    case "$k" in
+      AUTO_SWITCH|GAME_DND|NOTIFY) case "$v" in 0|1) ;; *) bad "invalid value";; esac;;
+      REFRESH_DAILY|REFRESH_GAME) [ -z "$v" ] || isnum "$v" || bad "invalid value";;
+      POLL) isnum "$v" && [ "$v" -ge 2 ] && [ "$v" -le 30 ] || bad "POLL 2-30";;
+      CPU_GOV_DAILY|CPU_GOV_GAME) [ -z "$v" ] || inlist "$v" $(cpu_avail) || bad "CPU governor not available";;
+      GPU_GOV_DAILY|GPU_GOV_GAME) [ -z "$v" ] || inlist "$v" $(gpu_avail) || bad "GPU governor not available";;
+      DOWNSCALE_DAILY|DOWNSCALE_GAME) isnum "$v" && [ "$v" -ge 30 ] && [ "$v" -le 100 ] || bad "Downscale 30-100";;
+      THERMAL_GUARD) isnum "$v" && { [ "$v" -eq 0 ] || { [ "$v" -ge 40 ] && [ "$v" -le 60 ]; }; } || bad "Guard 0 or 40-60";;
+      SWAP_GAME) isnum "$v" && [ "$v" -le 200 ] || bad "Swappiness 0-200";;
+      VFS_GAME) isnum "$v" && [ "$v" -ge 1 ] && [ "$v" -le 500 ] || bad "Cache pressure 1-500";;
+      TCP_GAME) [ -z "$v" ] || inlist "$v" $(tcp_avail) || bad "TCP algorithm not available";;
+      ZRAM_MB) [ -z "$v" ] || { isnum "$v" && [ "$v" -ge 256 ] && [ "$v" -le 16384 ]; } || bad "ZRAM 256-16384 MB";;
+      ZRAM_ALGO) [ -z "$v" ] || inlist "$v" $(zram_algos) || bad "ZRAM algorithm not available";;
+      *) bad "unknown key";;
     esac
-    setconf "$2" "$3"; load
-    case "$2" in REFRESH_*|GAME_DND) a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";; esac
+    eval "ov=\${$k}"
+    setconf "$k" "$v"; load
+    case "$k" in
+      REFRESH_*|GAME_DND|CPU_GOV_*|GPU_GOV_*|DOWNSCALE_*|SWAP_GAME|VFS_GAME|TCP_GAME)
+        a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";;
+      ZRAM_*)
+        if ! zram_sync; then setconf "$k" "$ov"; load; exit 1; fi;;
+      NOTIFY) [ "$v" = "1" ] && notify_state force;;
+    esac
+    notify_state
     echo "OK";;
+  thermal)
+    case "$2" in
+      disable)
+        thermal_disable || bad "No thermal services or sensors found to disable"
+        setconf THERMAL_OFF 1; notify_state; echo "Thermal disabled";;
+      enable)
+        thermal_enable; setconf THERMAL_OFF 0; notify_state; echo "Thermal restored";;
+      status) th_active && echo disabled || echo enabled;;
+      *) bad "usage: thermal {disable|enable|status}";;
+    esac;;
+  notify)
+    if notify "Test notification - SmoothPlay is working"; then echo OK; else echo "Could not post notification"; fi
+    rm -f "$NLAST";;
   games)
     case "$2" in
       add)    okpkg "$3" || { echo "invalid package"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
@@ -240,11 +537,15 @@ case "$1" in
   installed) pm list packages -3 2>/dev/null | sed 's/^package://' | sort;;
   clean)     clean;;
   trimcache) pm trim-caches 999G >/dev/null 2>&1; log "trim cache"; echo "App caches cleared";;
+  fstrim)
+    ( for p in /data /cache /metadata /system /vendor /product /system_ext /odm; do fstrim "$p" >/dev/null 2>&1; done
+      log "fstrim finished" ) >/dev/null 2>&1 </dev/null &
+    log "fstrim started"; echo "Storage trim started in the background";;
   dexopt)
-    ( cmd package compile -m speed-profile -a >> "$LOG" 2>&1; log "dexopt finished" ) &
+    ( cmd package compile -m speed-profile -a >> "$LOG" 2>&1; log "dexopt finished" ) >/dev/null 2>&1 </dev/null &
     log "dexopt started"; echo "Optimization started in the background (a few minutes)";;
   restore)   restore_all;;
   log)       tail -n 40 "$LOG" 2>/dev/null;;
   daemon)    daemon;;
-  *) echo "usage: smoothplay {status|profile|set|games|installed|clean|trimcache|dexopt|restore|log|daemon}"; exit 1;;
+  *) echo "usage: smoothplay {status|profile|set|thermal|notify|games|installed|clean|trimcache|fstrim|dexopt|restore|log|daemon}"; exit 1;;
 esac

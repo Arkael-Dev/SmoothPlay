@@ -6,7 +6,17 @@ if [ "$API" -lt 26 ]; then
   abort "! Requires Android 8.0 (API 26) or newer"
 fi
 
-ui_print "- SmoothPlay by @arqzey"
+ui_print " "
+ui_print "  ____                      _   _     ____  _"
+ui_print " / ___| _ __ ___   ___   __| |_| |__ |  _ \\| | __ _ _   _"
+ui_print " \\___ \\| '_ \` _ \\ / _ \\ / _\` | __| '_ \\| |_) | |/ _\` | | | |"
+ui_print "  ___) | | | | | | (_) | (_| | |_| | | |  __/| | (_| | |_| |"
+ui_print " |____/|_| |_| |_|\\___/ \\__,_|\\__|_| |_|_|   |_|\\__,_|\\__, |"
+ui_print "                                                      |___/"
+ui_print " "
+ui_print "- SmoothPlay by @arqzey  [BETA]"
+ui_print "- CPU/GPU governor, downscale, thermal toggle, notification"
+ui_print "- Thermal disable is manual and reversible from the WebUI"
 mkdir -p "$DATA"
 touch "$DATA/games.list"
 
