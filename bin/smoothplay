@@ -384,11 +384,11 @@ state_text() {
 
 notify() {  # text -> posts/replaces one notification using the module logo
   mkdir -p /data/local/tmp 2>/dev/null
-  cp -f "$MODDIR/webroot/logo.png" "$LOGO_T" 2>/dev/null; cp -f "$MODDIR/webroot/icon.png" "$ICON_T" 2>/dev/null
-  chmod 644 "$LOGO_T" "$ICON_T" 2>/dev/null
+  cp -f "$MODDIR/webroot/icon.png" "$ICON_T" 2>/dev/null
+  chmod 644 "$ICON_T" 2>/dev/null; rm -f "$LOGO_T" 2>/dev/null
   TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 10"
   ti="SmoothPlay is active"; [ "$UILANG" = "id" ] && ti="SmoothPlay aktif"
-  n1="cmd notification post -t '$ti' -i file://$ICON_T -I file://$LOGO_T 'SmoothPlay' '$1'"
+  n1="cmd notification post -t '$ti' -i file://$ICON_T 'SmoothPlay' '$1'"
   n2="cmd notification post -t '$ti' 'SmoothPlay' '$1'"
   for c in "$n1" "$n2"; do
     o=$($TO su -lp 2000 -c "$c" 2>&1 </dev/null) && return 0
@@ -398,14 +398,21 @@ notify() {  # text -> posts/replaces one notification using the module logo
   return 1
 }
 
+# leave a request for the daemon; true if it picked it up, false if nobody did (caller posts itself)
+notify_req() {
+  echo req > "$NREQ"
+  i=0; while [ -f "$NREQ" ] && [ "$i" -lt 8 ]; do sleep 0.5; i=$((i+1)); done
+  [ -f "$NREQ" ] || return 0
+  rm -f "$NREQ"; return 1
+}
+
 notify_state() {  # [force]
   load
   [ "$NOTIFY" = "1" ] || [ "$1" = "force" ] || return 0
   # Posting works from the daemon's own context (that is why it appeared after a reboot),
   # so a WebUI/CLI call only leaves a request and the daemon posts it within a second.
-  if [ "$(cat "$PIDF" 2>/dev/null)" != "$$" ] && daemon_alive; then
-    echo req > "$NREQ"; return 0
-  fi
+  if [ "$(cat "$PIDF" 2>/dev/null)" != "$$" ] && daemon_alive && notify_req; then return 0; fi
+  [ "$(cat "$PIDF" 2>/dev/null)" != "$$" ] && set -- force   # a tap from the WebUI/CLI always re-posts
   t=$(state_text)
   [ "$1" != "force" ] && [ "$(cat "$NLAST" 2>/dev/null)" = "$t" ] && return 0
   notify "$t" && echo "$t" > "$NLAST"
@@ -419,7 +426,13 @@ fg_pkg() {
   echo "$l" | sed -n 's/.* \([A-Za-z0-9_.]*\)\/[^ ]*.*/\1/p'
 }
 
-daemon_alive() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
+daemon_alive() {  # the pid must be alive AND really be a smoothplay process (pids get reused after reboot)
+  [ -f "$PIDF" ] || return 1
+  dp=$(cat "$PIDF" 2>/dev/null); isnum "$dp" || return 1
+  kill -0 "$dp" 2>/dev/null || return 1
+  [ "$dp" = "$$" ] && return 0
+  tr '\0' ' ' < "/proc/$dp/cmdline" 2>/dev/null | grep -q smoothplay
+}
 
 daemon() {
   if daemon_alive && [ "$(cat "$PIDF")" != "$$" ]; then exit 0; fi
@@ -573,7 +586,7 @@ case "$1" in
     esac;;
   notify)
     rm -f "$NLAST"
-    if daemon_alive; then echo req > "$NREQ"; echo OK
+    if daemon_alive && notify_req; then echo OK
     elif notify "$(state_text)"; then echo OK; else echo "Could not post notification"; fi;;
   games)
     case "$2" in
