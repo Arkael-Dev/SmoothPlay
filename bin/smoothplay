@@ -11,6 +11,8 @@ ACTIVE=$DATA/active
 ZEN=$DATA/zen.prev
 DISP=$DATA/display.prev
 DSP=$DATA/downscale.pct
+INGAME=$DATA/ingame
+GAMERES=$DATA/games.res
 TH_SVC=$DATA/thermal.svcs
 TH_MODE=$DATA/thermal.modes
 NLAST=$DATA/notify.last
@@ -22,7 +24,7 @@ ICON_T=/data/local/tmp/smoothplay_icon.png
 ZD=$SYS/sys/block/zram0
 ZDEV=/dev/block/zram0
 
-mkdir -p "$DATA"; touch "$GAMES"
+mkdir -p "$DATA"; touch "$GAMES" "$GAMERES"
 if [ ! -f "$CONF" ]; then
 cat > "$CONF" <<EOC
 PROFILE="daily"
@@ -35,8 +37,8 @@ EOC
 fi
 load() {
   . "$CONF"
-  : "${NOTIFY:=1}" "${DOWNSCALE_DAILY:=100}" "${DOWNSCALE_GAME:=100}" "${THERMAL_GUARD:=50}"
-  : "${SWAP_GAME:=40}" "${VFS_GAME:=50}" "${THERMAL_OFF:=0}" "${UILANG:=en}"
+  : "${NOTIFY:=1}" "${THERMAL_GUARD:=50}"
+  : "${SWAP_GAME:=40}" "${VFS_GAME:=50}" "${UILANG:=en}"
 }
 load
 
@@ -125,7 +127,7 @@ restore_S() {
 }
 
 restore_all() {
-  thermal_enable; setconf THERMAL_OFF 0
+  thermal_enable
   ds_reset
   [ -f "$ORIG" ] || { echo "No baseline saved, nothing to restore"; return 0; }
   restore_sys
@@ -162,6 +164,9 @@ dnd_restore() {
   sput global zen_mode "$z"; rm -f "$ZEN"
 }
 
+# --- per-game resolution: games.res holds "package=percent" lines (missing = native)
+game_res() { r=$(sed -n "s/^$(echo "$1" | sed 's/\./\\./g')=//p" "$GAMERES" | head -n 1); isnum "$r" && echo "$r" || echo 100; }
+
 # --- resolution downscale (wm size + wm density, scaled together so the UI keeps its layout)
 wm_get() { wm "$1" </dev/null 2>/dev/null | sed -n "s/^$2: *//p" | head -n 1; }
 
@@ -196,30 +201,50 @@ ds_apply() {
   return 0
 }
 
-# --- thermal: stop thermal services and hide sensor readings; fully reversible
+# --- thermal: stop init.svc.*thermal* services via resetprop, then hide temp sensors
+# Same flow as the classic thermal-kill script, reversible, and non-blocking
+# (the sleeps run in the background so the WebUI toggle returns immediately).
+TH_BG=$DATA/thermal.bg
 th_active() { [ -f "$TH_SVC" ] && [ "$(sed -n 1p "$TH_SVC")" = "$BOOTID" ]; }
+
+th_list() {  # running thermal services, one per line
+  { command -v resetprop >/dev/null 2>&1 && resetprop || getprop; } 2>/dev/null \
+    | sed -n 's/^\[init\.svc\.\([^]]*thermal[^]]*\)\]: \[running\]$/\1/p'
+}
 
 thermal_disable() {
   th_active && return 0
   rm -f "$TH_SVC" "$TH_MODE"
   echo "$BOOTID" > "$TH_SVC"; : > "$TH_MODE"
-  for s in $(getprop 2>/dev/null | sed -n 's/^\[init\.svc\.\([^]]*thermal[^]]*\)\]: \[running\]$/\1/p'); do
+  for s in $(th_list); do
     case "$s" in ""|*[!A-Za-z0-9_.-]*) continue;; esac
     echo "$s" >> "$TH_SVC"
-    stop "$s" </dev/null >/dev/null 2>&1
-    command -v resetprop >/dev/null 2>&1 && resetprop -n "init.svc.$s" stopped
   done
-  find "$SYS/sys/devices/virtual/thermal" -name temp -type f 2>/dev/null | while IFS= read -r f; do
-    m=$(stat -c %a "$f" 2>/dev/null); [ -n "$m" ] || continue
-    echo "$m|$f" >> "$TH_MODE"; chmod 000 "$f"
-  done
-  ns=$(( $(grep -c . "$TH_SVC") - 1 )); nt=$(grep -c . "$TH_MODE")
-  log "thermal disabled: $ns service(s) stopped, $nt sensor file(s) hidden"
+  ns=$(( $(grep -c . "$TH_SVC") - 1 ))
+  nt=$(find "$SYS/sys/devices/virtual/thermal" -name temp -type f 2>/dev/null | grep -c .)
   if [ "$ns" -le 0 ] && [ "$nt" -le 0 ]; then rm -f "$TH_SVC" "$TH_MODE"; return 1; fi
+  (
+    sed 1d "$TH_SVC" | while read -r s; do
+      stop "$s" </dev/null >/dev/null 2>&1
+      sleep "${TH_DELAY:-10}"
+      command -v resetprop >/dev/null 2>&1 && resetprop -n "init.svc.$s" stopped
+    done
+    sleep "${TH_DELAY:-10}"
+    find "$SYS/sys/devices/virtual/thermal" -name temp -type f 2>/dev/null | while IFS= read -r f; do
+      m=$(stat -c %a "$f" 2>/dev/null); [ -n "$m" ] || continue
+      echo "$m|$f" >> "$TH_MODE"; chmod 000 "$f"
+    done
+    log "thermal disabled: services stopped, sensor files hidden"
+    rm -f "$TH_BG"
+  ) >/dev/null 2>&1 </dev/null &
+  echo $! > "$TH_BG"
+  log "thermal disabling: $ns service(s), $nt sensor file(s)"
   return 0
 }
 
 thermal_enable() {
+  # cancel a disable that is still running in the background
+  if [ -f "$TH_BG" ]; then kill "$(cat "$TH_BG")" 2>/dev/null; rm -f "$TH_BG"; fi
   [ -f "$TH_SVC" ] || return 0
   if [ "$(sed -n 1p "$TH_SVC")" = "$BOOTID" ] && [ -f "$TH_MODE" ]; then
     while IFS='|' read -r m f; do
@@ -231,6 +256,7 @@ thermal_enable() {
   sed 1d "$TH_SVC" | while read -r s; do
     case "$s" in ""|*[!A-Za-z0-9_.-]*) continue;; esac
     start "$s" </dev/null >/dev/null 2>&1
+    command -v resetprop >/dev/null 2>&1 && resetprop -n "init.svc.$s" running
   done
   rm -f "$TH_SVC" "$TH_MODE"
   log "thermal restored"
@@ -238,10 +264,10 @@ thermal_enable() {
 }
 
 thermal_guard() {
-  [ "$THERMAL_OFF" = "1" ] && [ "$THERMAL_GUARD" -gt 0 ] || return 0
+  th_active && [ "$THERMAL_GUARD" -gt 0 ] || return 0
   bt=$(batt_temp); isnum "$bt" || return 0
   if [ "$bt" -ge "$THERMAL_GUARD" ]; then
-    thermal_enable; setconf THERMAL_OFF 0; load
+    thermal_enable; load
     log "thermal guard: battery ${bt}C >= ${THERMAL_GUARD}C, thermal restored"
     t="Thermal protection restored: battery ${bt}C reached the ${THERMAL_GUARD}C limit"
     notify "$t" && echo "$t" > "$NLAST"
@@ -290,7 +316,7 @@ p_daily() {
   dnd_restore
   [ -n "$CPU_GOV_DAILY" ] && set_gov "$CPU_GOV_DAILY"
   [ -n "$GPU_GOV_DAILY" ] && set_gpu_gov "$GPU_GOV_DAILY"
-  ds_apply "$DOWNSCALE_DAILY"
+  ds_reset  # Daily / normal use is always native resolution
 }
 
 p_game() {
@@ -307,7 +333,9 @@ p_game() {
   anim 0.5
   [ -n "$REFRESH_GAME" ] && refresh_set "$REFRESH_GAME" "$REFRESH_GAME"
   [ "$GAME_DND" = "1" ] && dnd_on
-  ds_apply "$DOWNSCALE_GAME"
+  # per-game resolution, only while that listed game is detected in the foreground
+  gp=$(cat "$INGAME" 2>/dev/null)
+  if [ -n "$gp" ]; then ds_apply "$(game_res "$gp")"; else ds_reset; fi
 }
 
 apply() {
@@ -390,9 +418,9 @@ daemon() {
   log "daemon started (pid $$)"
   load
   rm -f "$NLAST"
+  rm -f "$INGAME"; ds_reset
   [ "$AUTO_SWITCH" = "1" ] || apply "$PROFILE"
-  ( sleep 15; load
-    [ "$THERMAL_OFF" = "1" ] && thermal_disable
+  ( sleep 20; load
     zram_sync
     notify_state ) >/dev/null 2>&1 </dev/null &
   key=""; lastgame=""
@@ -408,16 +436,17 @@ daemon() {
           if [ "$want" != "$key" ]; then
             if [ "$want" = "daily" ]; then
               [ -n "$lastgame" ] && gmode standard "$lastgame"
-              lastgame=""; apply daily
+              lastgame=""; rm -f "$INGAME"; apply daily
             else
               [ -n "$lastgame" ] && gmode standard "$lastgame"
-              apply game; gmode performance "$pkg"; lastgame="$pkg"
+              echo "$pkg" > "$INGAME"; apply game; gmode performance "$pkg"; lastgame="$pkg"
             fi
             key="$want"
           fi;;
       esac
     else
       key=""
+      if [ -f "$INGAME" ]; then rm -f "$INGAME"; ds_reset; fi
     fi
     sleep "${POLL:-4}"
   done
@@ -444,11 +473,8 @@ status() {
   echo "cpu_gov_game=$CPU_GOV_GAME"
   echo "gpu_gov_daily=$GPU_GOV_DAILY"
   echo "gpu_gov_game=$GPU_GOV_GAME"
-  echo "ds_daily=$DOWNSCALE_DAILY"
-  echo "ds_game=$DOWNSCALE_GAME"
   echo "ds_now=$(cat "$DSP" 2>/dev/null || echo 100)"
   echo "thermal_off=$(th_active && echo 1 || echo 0)"
-  echo "thermal_cfg=$THERMAL_OFF"
   echo "thermal_guard=$THERMAL_GUARD"
   echo "notify=$NOTIFY"
   echo "uilang=$UILANG"
@@ -503,7 +529,6 @@ case "$1" in
       POLL) isnum "$v" && [ "$v" -ge 2 ] && [ "$v" -le 30 ] || bad "POLL 2-30";;
       CPU_GOV_DAILY|CPU_GOV_GAME) [ -z "$v" ] || inlist "$v" $(cpu_avail) || bad "CPU governor not available";;
       GPU_GOV_DAILY|GPU_GOV_GAME) [ -z "$v" ] || inlist "$v" $(gpu_avail) || bad "GPU governor not available";;
-      DOWNSCALE_DAILY|DOWNSCALE_GAME) isnum "$v" && [ "$v" -ge 30 ] && [ "$v" -le 100 ] || bad "Downscale 30-100";;
       THERMAL_GUARD) isnum "$v" && { [ "$v" -eq 0 ] || { [ "$v" -ge 40 ] && [ "$v" -le 60 ]; }; } || bad "Guard 0 or 40-60";;
       SWAP_GAME) isnum "$v" && [ "$v" -le 200 ] || bad "Swappiness 0-200";;
       VFS_GAME) isnum "$v" && [ "$v" -ge 1 ] && [ "$v" -le 500 ] || bad "Cache pressure 1-500";;
@@ -515,7 +540,7 @@ case "$1" in
     eval "ov=\${$k}"
     setconf "$k" "$v"; load
     case "$k" in
-      REFRESH_*|GAME_DND|CPU_GOV_*|GPU_GOV_*|DOWNSCALE_*|SWAP_GAME|VFS_GAME|TCP_GAME)
+      REFRESH_*|GAME_DND|CPU_GOV_*|GPU_GOV_*|SWAP_GAME|VFS_GAME|TCP_GAME)
         a=$(cat "$ACTIVE" 2>/dev/null); [ -n "$a" ] && apply "$a";;
       ZRAM_*)
         if ! zram_sync; then setconf "$k" "$ov"; load; exit 1; fi;;
@@ -525,13 +550,13 @@ case "$1" in
     echo "OK";;
   thermal)
     case "$2" in
-      disable)
-        thermal_disable || bad "No thermal services or sensors found to disable"
-        setconf THERMAL_OFF 1; notify_state; echo "Thermal disabled";;
-      enable)
-        thermal_enable; setconf THERMAL_OFF 0; notify_state; echo "Thermal restored";;
-      status) th_active && echo disabled || echo enabled;;
-      *) bad "usage: thermal {disable|enable|status}";;
+      stopped|stop|disable)
+        thermal_disable || bad "No thermal services or sensors found"
+        notify_state; echo "Thermal stopped";;
+      running|start|enable)
+        thermal_enable; notify_state; echo "Thermal running";;
+      status) th_active && echo stopped || echo running;;
+      *) bad "usage: thermal {stopped|running|status}";;
     esac;;
   notify)
     if notify "$(state_text)"; then echo OK; else echo "Could not post notification"; fi
@@ -539,7 +564,16 @@ case "$1" in
   games)
     case "$2" in
       add)    okpkg "$3" || { echo "invalid package"; exit 1; }; grep -qxF "$3" "$GAMES" || echo "$3" >> "$GAMES"; echo OK;;
-      remove) okpkg "$3" || { echo "invalid package"; exit 1; }; grep -vxF "$3" "$GAMES" > "$GAMES.t"; mv "$GAMES.t" "$GAMES"; echo OK;;
+      remove) okpkg "$3" || { echo "invalid package"; exit 1; }; grep -vxF "$3" "$GAMES" > "$GAMES.t"; mv "$GAMES.t" "$GAMES"
+              grep -v "^$3=" "$GAMERES" > "$GAMERES.t"; mv "$GAMERES.t" "$GAMERES"; echo OK;;
+      res)    okpkg "$3" || { echo "invalid package"; exit 1; }
+              grep -qxF "$3" "$GAMES" || { echo "Add the game to the list first"; exit 1; }
+              isnum "$4" && [ "$4" -ge 30 ] && [ "$4" -le 100 ] || { echo "Resolution 30-100"; exit 1; }
+              grep -v "^$3=" "$GAMERES" > "$GAMERES.t"; mv "$GAMERES.t" "$GAMERES"
+              [ "$4" -lt 100 ] && echo "$3=$4" >> "$GAMERES"
+              [ "$(cat "$INGAME" 2>/dev/null)" = "$3" ] && apply game
+              echo OK;;
+      resall) cat "$GAMERES";;
       *) cat "$GAMES";;
     esac;;
   installed) pm list packages -3 2>/dev/null | sed 's/^package://' | sort;;

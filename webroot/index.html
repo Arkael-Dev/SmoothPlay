@@ -79,7 +79,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0;filter:drop
 .danger{width:100%;margin-top:8px;color:var(--bad);border-color:rgba(255,90,110,.4)}
 #list{max-height:300px;overflow:auto}
 #list label{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);word-break:break-all;font-size:13px}
-#list input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+#list input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+#list .pn{flex:1;min-width:0}
+#list select{flex:none;max-width:none;font-size:12px;padding:6px}
 pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-all;color:var(--mute);max-height:200px;overflow:auto}
 #toast{position:fixed;left:14px;right:14px;bottom:calc(18px + env(safe-area-inset-bottom,0px));background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font-weight:600;padding:12px 14px;border-radius:12px;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
 #toast.show{opacity:1;transform:none}
@@ -128,16 +130,9 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
   <label class="row"><span><span data-i="gpu_g"></span><small data-i="gpu_g_s"></small></span><select id="gg"></select></label>
 </div>
 
-<h2 data-i="res"></h2>
-<div class="card">
-  <div class="row col"><div class="top"><span><span data-i="daily"></span><small data-i="ds_d_s"></small></span><b id="dsd_v"></b></div><input type="range" id="dsd" min="30" max="100" step="5" aria-labelledby="dsd_v"></div>
-  <div class="row col"><div class="top"><span><span data-i="game"></span><small data-i="ds_g_s"></small></span><b id="dsg_v"></b></div><input type="range" id="dsg" min="30" max="100" step="5" aria-labelledby="dsg_v"></div>
-</div>
-<p class="note" data-i="ds_note"></p>
-
 <h2 data-i="thermal"></h2>
 <div class="card">
-  <label class="row"><span><span data-i="th_sw"></span><small data-i="th_sw_s"></small></span><input class="sw bad" type="checkbox" id="th"></label>
+  <label class="row"><span><span data-i="th_sw"></span><small data-i="th_sw_s"></small></span><select id="th"></select></label>
   <label class="row"><span><span data-i="th_guard"></span><small data-i="th_guard_s"></small></span><select id="thg"></select></label>
 </div>
 
@@ -151,6 +146,7 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
 </div>
 
 <h2 data-i="gamelist"></h2>
+<p class="note" data-i="ds_note"></p>
 <div class="card" style="padding:0 14px 0"><input type="search" id="q" data-ph="search"></div>
 <div class="card" id="list" style="margin-top:8px"></div>
 
@@ -184,13 +180,13 @@ sysdef:'System default',nomatch:'No matching apps.',added:'Added to game list',r
 confirm:'Restore all settings to their values from before the module was used?',logempty:'Log is empty.',failed:'Failed',
 notksu:'Open this page from KernelSU, APatch or KsuWebUI.',noresp:'Module is not responding',
 live_on:'LIVE',live_off:'OFFLINE',standby:'Standby: no extra feature active',profile_w:'profile',downscale:'Downscale',th_chip:'Thermal OFF',
-warn_th:'Thermal protection is disabled. Keep an eye on the temperature, and turn it back on if the phone gets too hot.',
+warn_th:'Thermal is Stopped. Watch the temperature and set it back to Running if the phone gets too hot.',
 governors:'CPU & GPU governor',gov_auto:'Auto',gpu_na:'Not available',
 cpu_d:'CPU: Daily',cpu_d_s:'Auto = system default',cpu_g:'CPU: Game',cpu_g_s:'Auto = performance',
 gpu_d:'GPU: Daily',gpu_d_s:'Auto = system default',gpu_g:'GPU: Game',gpu_g_s:'Auto = unchanged',
-res:'Resolution (downscale)',ds_d_s:'Used in the Daily profile',ds_g_s:'Used in the Game profile',
-ds_note:'100% = native resolution. The foreground app may restart briefly when the resolution changes.',
-thermal:'Thermal',th_sw:'Disable thermal throttling',th_sw_s:'Stops thermal services and hides temperature sensors. Stays off after reboot until you switch it back on.',
+
+ds_note:'Resolution is set per game, only while that game is open. Normal use stays native. The game may restart briefly when the resolution changes.',res:'Resolution',res_native:'Native res',th_run:'Running (normal)',th_stop:'Stopped',
+thermal:'Thermal',th_sw:'Thermal services',th_sw_s:'Manual. Stopped = all thermal services set to stopped and sensors hidden (~20s to apply). Running = back to normal. Returns to Running after every reboot.',
 th_guard:'Safety cutoff',th_guard_s:'Thermal turns back on at this battery temperature',off:'Off',
 th_confirm:'Disabling thermal protection can overheat the phone and damage the battery. Continue?',
 advanced:'Advanced (manual)',swap_g:'Swappiness: Game',swap_s:'Higher = uses ZRAM more',vfs_g:'Cache pressure: Game',vfs_s:'Lower = keeps file cache longer',
@@ -210,13 +206,13 @@ sysdef:'Bawaan sistem',nomatch:'Tidak ada aplikasi yang cocok.',added:'Ditambahk
 confirm:'Pulihkan semua pengaturan ke nilai sebelum modul dipakai?',logempty:'Log kosong.',failed:'Gagal',
 notksu:'Buka halaman ini lewat KernelSU, APatch, atau KsuWebUI.',noresp:'Modul tidak merespons',
 live_on:'LIVE',live_off:'OFFLINE',standby:'Siaga: tidak ada fitur tambahan aktif',profile_w:'profil',downscale:'Downscale',th_chip:'Thermal MATI',
-warn_th:'Proteksi thermal dimatikan. Pantau suhu, dan nyalakan lagi kalau HP terlalu panas.',
+warn_th:'Thermal sedang Stopped. Pantau suhu dan kembalikan ke Running kalau HP terlalu panas.',
 governors:'Governor CPU & GPU',gov_auto:'Otomatis',gpu_na:'Tidak tersedia',
 cpu_d:'CPU: Daily',cpu_d_s:'Otomatis = bawaan sistem',cpu_g:'CPU: Game',cpu_g_s:'Otomatis = performance',
 gpu_d:'GPU: Daily',gpu_d_s:'Otomatis = bawaan sistem',gpu_g:'GPU: Game',gpu_g_s:'Otomatis = tidak diubah',
-res:'Resolusi (downscale)',ds_d_s:'Dipakai di profil Daily',ds_g_s:'Dipakai di profil Game',
-ds_note:'100% = resolusi asli. Aplikasi di layar bisa restart sebentar saat resolusi berubah.',
-thermal:'Thermal',th_sw:'Matikan thermal throttling',th_sw_s:'Menghentikan layanan thermal dan menyembunyikan sensor suhu. Tetap mati setelah reboot sampai kamu nyalakan lagi.',
+
+ds_note:'Resolusi diatur per game, hanya aktif saat game itu dibuka. Pemakaian normal tetap asli. Game bisa restart sebentar saat resolusi berubah.',res:'Resolusi',res_native:'Res asli',th_run:'Running (normal)',th_stop:'Stopped',
+thermal:'Thermal',th_sw:'Layanan thermal',th_sw_s:'Manual. Stopped = semua layanan thermal di-stop dan sensor suhu disembunyikan (~20 detik). Running = kembali normal. Otomatis Running lagi setiap reboot.',
 th_guard:'Batas pengaman',th_guard_s:'Thermal menyala lagi saat suhu baterai mencapai nilai ini',off:'Mati',
 th_confirm:'Mematikan proteksi thermal bisa membuat HP terlalu panas dan merusak baterai. Lanjutkan?',
 advanced:'Lanjutan (manual)',swap_g:'Swappiness: Game',swap_s:'Lebih tinggi = lebih banyak pakai ZRAM',vfs_g:'Cache pressure: Game',vfs_s:'Lebih rendah = cache file bertahan lebih lama',
@@ -227,7 +223,7 @@ t_th_off:'Thermal dimatikan',t_th_on:'Thermal dipulihkan',t_fstrim:'Trim penyimp
 };
 const $=s=>document.querySelector(s);
 const q1=a=>"'"+String(a).replace(/'/g,"'\\''")+"'";
-let lang='en',S=null,games=new Set(),installed=[];
+let lang='en',S=null,games=new Set(),gres={},installed=[];
 try{const v=localStorage.getItem('sp_lang');lang=v&&I[v]?v:(navigator.language||'en').toLowerCase().startsWith('id')?'id':'en'}catch(e){lang=(navigator.language||'en').toLowerCase().startsWith('id')?'id':'en'}
 const t=k=>I[lang][k]??I.en[k]??k;
 
@@ -306,7 +302,7 @@ function render(){
   if(ch.length)ch.forEach(x=>{const i=document.createElement('i');i.textContent=x;box.append(i)});
   else{const m=document.createElement('span');m.textContent=t('standby');box.append(m)}
   const lv=$('#live');lv.textContent=s.daemon==='1'?t('live_on'):t('live_off');lv.classList.toggle('off',s.daemon!=='1');
-  $('#warn').hidden=!(s.thermal_cfg==='1'||s.thermal_off==='1');
+  $('#warn').hidden=s.thermal_off!=='1';
 
   $('#auto').checked=s.auto==='1';$('#dnd').checked=s.dnd==='1';$('#notify').checked=s.notify==='1';
   const hz=[['',t('sysdef')],['60','60 Hz'],['90','90 Hz'],['120','120 Hz'],['144','144 Hz']];
@@ -321,11 +317,8 @@ function render(){
     fillSel(el,hasGpu?govItems(s.gpu_govs,v,A):[['',t('gpu_na')]],v);
   });
 
-  [['dsd',s.ds_daily],['dsg',s.ds_game]].forEach(([id,v])=>{
-    const el=$('#'+id);if(cur!==el)el.value=v;$('#'+id+'_v').textContent=el.value+'%';
-  });
 
-  $('#th').checked=s.thermal_cfg==='1'||s.thermal_off==='1';
+  fillSel($('#th'),[['running',t('th_run')],['stopped',t('th_stop')]],s.thermal_off==='1'?'stopped':'running');
   fillSel($('#thg'),[['0',t('off')],['45','45 °C'],['48','48 °C'],['50','50 °C'],['55','55 °C']].concat(
     ['0','45','48','50','55'].includes(s.thermal_guard)?[]:[[s.thermal_guard,s.thermal_guard+' °C']]),s.thermal_guard);
 
@@ -347,8 +340,9 @@ function render(){
 }
 
 async function loadGames(){
-  const [g,i]=await Promise.all([sp('games'),sp('installed')]);
+  const [g,i,r]=await Promise.all([sp('games'),sp('installed'),sp('games','resall')]);
   games=new Set(g.out.split('\n').filter(Boolean));
+  gres={};r.out.split('\n').forEach(l=>{const m=l.match(/^(.+)=(\d+)$/);if(m)gres[m[1]]=m[2]});
   installed=i.out.split('\n').filter(Boolean);
   renderList();
 }
@@ -364,9 +358,23 @@ function renderList(){
     c.onchange=async()=>{
       const r=await sp('games',c.checked?'add':'remove',p);
       if(r.code!==0){c.checked=!c.checked;toast(r.err||r.out);return}
-      c.checked?games.add(p):games.delete(p);toast(t(c.checked?'added':'removed'));
+      c.checked?games.add(p):games.delete(p);if(!c.checked)delete gres[p];toast(t(c.checked?'added':'removed'));renderList();
     };
-    l.append(c,document.createTextNode(p));box.append(l);
+    const n=document.createElement('span');n.className='pn';n.textContent=p;
+    l.append(c,n);
+    if(games.has(p)){
+      const sel=document.createElement('select');sel.setAttribute('aria-label',t('res'));
+      sel.add(new Option(t('res_native'),'100'));
+      [90,80,70,60,50,40,30].forEach(v=>sel.add(new Option(v+'%',String(v))));
+      sel.value=gres[p]||'100';
+      sel.onchange=async()=>{
+        const r=await sp('games','res',p,sel.value);
+        if(r.code!==0){sel.value=gres[p]||'100';toast(r.err||r.out);return}
+        if(sel.value==='100')delete gres[p];else gres[p]=sel.value;toast(t('t_saved'));
+      };
+      l.append(sel);
+    }
+    box.append(l);
   });
 }
 
@@ -379,16 +387,11 @@ bindSel('rd','REFRESH_DAILY');bindSel('rg','REFRESH_GAME');
 bindSel('cd','CPU_GOV_DAILY');bindSel('cg','CPU_GOV_GAME');bindSel('gd','GPU_GOV_DAILY');bindSel('gg','GPU_GOV_GAME');
 bindSel('thg','THERMAL_GUARD');bindSel('swp','SWAP_GAME');bindSel('vfs','VFS_GAME');bindSel('tcp','TCP_GAME');
 bindSel('zsz','ZRAM_MB',true);bindSel('zal','ZRAM_ALGO',true);
-[['dsd','DOWNSCALE_DAILY'],['dsg','DOWNSCALE_GAME']].forEach(([id,key])=>{
-  const el=$('#'+id);
-  el.oninput=()=>{$('#'+id+'_v').textContent=el.value+'%'};
-  el.onchange=()=>act('t_saved','set',key,el.value);
-});
 $('#th').onchange=e=>{
-  if(e.target.checked){
-    if(!confirm(t('th_confirm'))){e.target.checked=false;return}
-    act('t_th_off','thermal','disable');
-  }else act('t_th_on','thermal','enable');
+  if(e.target.value==='stopped'){
+    if(!confirm(t('th_confirm'))){e.target.value='running';return}
+    act('t_th_off','thermal','stopped');
+  }else act('t_th_on','thermal','running');
 };
 $('#q').oninput=renderList;
 $('#clean').onclick=()=>act(o=>{const m=o.match(/(\d+) MB -> (\d+) MB/);return m?t('t_ram').replace('{a}',m[1]).replace('{b}',m[2]):t('t_saved')},'clean');
