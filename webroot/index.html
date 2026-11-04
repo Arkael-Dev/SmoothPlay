@@ -130,6 +130,12 @@ pre{margin:0;padding:12px 14px;font-size:11px;line-height:1.5;white-space:pre-wr
   <label class="row"><span><span data-i="gpu_g"></span><small data-i="gpu_g_s"></small></span><select id="gg"></select></label>
 </div>
 
+<h2 data-i="animh"></h2>
+<div class="card">
+  <label class="row"><span><span data-i="anim_d"></span><small data-i="anim_d_s"></small></span><select id="ad"></select></label>
+  <label class="row"><span><span data-i="anim_g"></span><small data-i="anim_g_s"></small></span><select id="ag"></select></label>
+</div>
+
 <h2 data-i="thermal"></h2>
 <div class="card">
   <label class="row"><span><span data-i="th_sw"></span><small data-i="th_sw_s"></small></span><select id="th"></select></label>
@@ -181,6 +187,7 @@ live_on:'LIVE',live_off:'OFFLINE',standby:'Standby: no extra feature active',pro
 warn_th:'Thermal is Stopped. Watch the temperature and set it back to Running if the phone gets too hot.',
 governors:'CPU & GPU governor',gov_auto:'Auto',gpu_na:'Not available',
 cpu_d:'CPU: Daily',cpu_d_s:'Auto = system default',cpu_g:'CPU: Game',cpu_g_s:'Auto = performance',
+animh:'Animation speed',anim_d:'Animation: Daily',anim_d_s:'System default = untouched',anim_g:'Animation: Game',anim_g_s:'Lower = snappier menus',
 gpu_d:'GPU: Daily',gpu_d_s:'Auto = system default',gpu_g:'GPU: Game',gpu_g_s:'Auto = unchanged',
 
 ds_note:'Resolution is set per game, only while that game is open. Normal use stays native. The game may restart briefly when the resolution changes.',res:'Resolution',res_native:'Native res',th_run:'Running (normal)',th_stop:'Stopped',
@@ -207,6 +214,7 @@ live_on:'LIVE',live_off:'OFFLINE',standby:'Siaga: tidak ada fitur tambahan aktif
 warn_th:'Thermal sedang Stopped. Pantau suhu dan kembalikan ke Running kalau HP terlalu panas.',
 governors:'Governor CPU & GPU',gov_auto:'Otomatis',gpu_na:'Tidak tersedia',
 cpu_d:'CPU: Daily',cpu_d_s:'Otomatis = bawaan sistem',cpu_g:'CPU: Game',cpu_g_s:'Otomatis = performance',
+animh:'Kecepatan animasi',anim_d:'Animasi: Daily',anim_d_s:'Bawaan sistem = tidak diubah',anim_g:'Animasi: Game',anim_g_s:'Lebih rendah = menu lebih responsif',
 gpu_d:'GPU: Daily',gpu_d_s:'Otomatis = bawaan sistem',gpu_g:'GPU: Game',gpu_g_s:'Otomatis = tidak diubah',
 
 ds_note:'Resolusi diatur per game, hanya aktif saat game itu dibuka. Pemakaian normal tetap asli. Game bisa restart sebentar saat resolusi berubah.',res:'Resolusi',res_native:'Res asli',th_run:'Running (normal)',th_stop:'Stopped',
@@ -319,6 +327,9 @@ function render(){
   fillSel($('#thg'),[['0',t('off')],['45','45 °C'],['48','48 °C'],['50','50 °C'],['55','55 °C']].concat(
     ['0','45','48','50','55'].includes(s.thermal_guard)?[]:[[s.thermal_guard,s.thermal_guard+' °C']]),s.thermal_guard);
 
+  const an=[['',t('sysdef')],...['1','0.7','0.5','0.25'].map(v=>[v,v+'x'])];
+  fillSel($('#ad'),an,s.anim_daily);fillSel($('#ag'),an,s.anim_game);
+
   fillSel($('#swp'),numItems([0,10,20,30,40,60,80,100],s.swap_game),s.swap_game);
   fillSel($('#vfs'),numItems([25,50,75,100,150,200],s.vfs_game),s.vfs_game);
   fillSel($('#tcp'),govItems(s.tcp_avail,s.tcp_game,A),s.tcp_game);
@@ -376,7 +387,7 @@ $('#dnd').onchange=e=>act('t_saved','set','GAME_DND',e.target.checked?1:0);
 $('#notify').onchange=e=>act('t_saved','set','NOTIFY',e.target.checked?1:0);
 bindSel('rd','REFRESH_DAILY');bindSel('rg','REFRESH_GAME');
 bindSel('cd','CPU_GOV_DAILY');bindSel('cg','CPU_GOV_GAME');bindSel('gd','GPU_GOV_DAILY');bindSel('gg','GPU_GOV_GAME');
-bindSel('thg','THERMAL_GUARD');bindSel('swp','SWAP_GAME');bindSel('vfs','VFS_GAME');bindSel('tcp','TCP_GAME');
+bindSel('thg','THERMAL_GUARD');bindSel('ad','ANIM_DAILY');bindSel('ag','ANIM_GAME');bindSel('swp','SWAP_GAME');bindSel('vfs','VFS_GAME');bindSel('tcp','TCP_GAME');
 $('#th').onchange=e=>{
   if(e.target.value==='stopped'){
     if(!confirm(t('th_confirm'))){e.target.value='running';return}
@@ -393,7 +404,7 @@ $('#restore').onclick=()=>{if(confirm(t('confirm')))act('t_restore','restore')};
 $('#logbtn').onclick=async()=>{const r=await sp('log');const p=$('#log');p.dataset.has='1';p.textContent=r.out||t('logempty')};
 $('#lang').onchange=e=>{lang=e.target.value;try{localStorage.setItem('sp_lang',lang)}catch(x){}applyLang();sp('set','UILANG',lang)};
 
-applyLang();load();loadGames();setInterval(load,10000);
+applyLang();load();loadGames();setInterval(load,20000);
 </script>
 </body>
 </html>

@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.0
+- Daily profile no longer pins the minimum refresh rate (peak only) so idle stays efficient; animation speed is now a setting (Daily/Game) instead of hardcoded 0.7; the daemon skips the foreground dump while the screen is off; the thermal guard also runs on status calls so it still trips with the daemon dead; removing a running game clears its downscale; real 32G cache trim; profile is reapplied on daemon start.
+
 ## v1.1.9
 - Remove ZRAM feature
 
