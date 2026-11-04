@@ -18,6 +18,7 @@ TH_MODE=$DATA/thermal.modes
 NLAST=$DATA/notify.last
 NREQ=$DATA/notify.req
 MODDIR=${0%/*}/..
+[ -f "$MODDIR/module.prop" ] || MODDIR=${0%/*}
 SDK=$(getprop ro.build.version.sdk)
 BOOTID=$(cat "$SYS/proc/sys/kernel/random/boot_id" 2>/dev/null)
 LOGO_T=/data/local/tmp/smoothplay_logo.png
@@ -26,14 +27,24 @@ ICON_T=/data/local/tmp/smoothplay_icon.png
 mkdir -p "$DATA"; touch "$GAMES" "$GAMERES"
 if [ ! -f "$CONF" ]; then
 cat > "$CONF" <<EOC
-PROFILE="daily"
-AUTO_SWITCH="1"
-GAME_DND="0"
+PROFILE="daily"          # daily | game
+AUTO_SWITCH="1"          # follow the foreground game
+GAME_DND="0"             # do-not-disturb while gaming
+NOTIFY="1"               # status notification
+THERMAL_GUARD="50"       # restore thermal at this battery temperature (0 = off)
+UILANG="en"              # en | id
+POLL="4"                 # seconds between foreground checks
 REFRESH_DAILY=""
 REFRESH_GAME=""
-POLL="4"
-ANIM_DAILY="0.7"
+ANIM_DAILY="0.7"         # "" = leave the system value
 ANIM_GAME="0.5"
+CPU_GOV_DAILY=""
+CPU_GOV_GAME=""
+GPU_GOV_DAILY=""
+GPU_GOV_GAME=""
+SWAP_GAME="40"
+VFS_GAME="50"
+TCP_GAME=""
 EOC
 fi
 load() {
@@ -535,7 +546,6 @@ case "$1" in
       TCP_GAME) [ -z "$v" ] || inlist "$v" $(tcp_avail) || bad "TCP algorithm not available";;
       *) bad "unknown key";;
     esac
-    eval "ov=\${$k}"
     setconf "$k" "$v"; load
     case "$k" in
       REFRESH_*|GAME_DND|CPU_GOV_*|GPU_GOV_*|SWAP_GAME|VFS_GAME|TCP_GAME|ANIM_*)

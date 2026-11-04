@@ -6,10 +6,11 @@ Author: [@arqzey](https://github.com/Arkael-Dev)
 
 ## Features
 - **Daily and Game profiles**, selected manually or automatically.
-- **Per-app auto-switch**: a lightweight daemon checks the foreground app every few seconds and switches to Game when the app is on your game list.
+- **Per-app auto-switch**: a lightweight daemon checks the foreground app every few seconds and switches to Game when the app is on your game list. It skips the check while the screen is off, and the battery-temperature safety cutoff also runs on every status call, so it still works if the daemon dies.
 - **Game profile**: CPU governor `performance` (if available), swappiness 40, vfs_cache_pressure 50, TCP `bbr` (if available), 0.5x animations, locked refresh rate, optional Do Not Disturb, and `cmd game mode performance` on Android 12+.
-- **Daily profile**: restores the original kernel values, 0.7x animations, and your chosen maximum refresh rate.
-- **Refresh rate** configured separately for Daily and Game (via `min/peak_refresh_rate`).
+- **Daily profile**: restores the original kernel values, your chosen animation speed, and your chosen maximum refresh rate.
+- **Refresh rate** configured separately for Daily and Game. Daily only sets `peak_refresh_rate` (the panel may still drop lower); Game locks both via `min/peak_refresh_rate`.
+- **Animation speed** configured separately for Daily and Game (Auto = system value), for the three `*_animation_scale` settings.
 - **Game list** picked from your installed apps, with search.
 - **WebUI in English and Indonesian**: switch language from the header (saved automatically).
 - **CPU & GPU governor**: pick any available governor per profile (Auto = default behaviour).
@@ -29,7 +30,7 @@ Author: [@arqzey](https://github.com/Arkael-Dev)
 - Disabling thermal protection can overheat the phone. Use the safety cutoff.
 - Changing resolution may restart the game once.
 - Some devices (e.g. Samsung) control refresh rate through other settings keys, so the refresh rate option may have no effect.
-- Tap **Restore defaults** before uninstalling so animation and refresh rate settings return to normal.
+- Tap **Restore defaults** before uninstalling so animation and refresh rate settings return to normal. Uninstalling alone only deletes the module data, it does not put system settings back.
 - CLI: `su -c sh /data/adb/modules/smoothplay/bin/smoothplay status`
 
 ## Build and release

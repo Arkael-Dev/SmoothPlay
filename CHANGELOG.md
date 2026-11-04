@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.2.1
+- Config file is now fully documented with every key at its default; fixed a stale dead-code assignment in 'set'; every README section matches the new refresh rate and animation behaviour; fixed the Daily refresh-rate description in the WebUI; module.prop lookup falls back to the script directory.
+
 ## v1.2.0
 - Daily profile no longer pins the minimum refresh rate (peak only) so idle stays efficient; animation speed is now a setting (Daily/Game) instead of hardcoded 0.7; the daemon skips the foreground dump while the screen is off; the thermal guard also runs on status calls so it still trips with the daemon dead; removing a running game clears its downscale; real 32G cache trim; profile is reapplied on daemon start.
 
